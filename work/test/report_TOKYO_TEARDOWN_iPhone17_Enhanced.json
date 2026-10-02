@@ -9,7 +9,7 @@
   {
    "name": "2 maps generate",
    "status": "PASS",
-   "info": "map0:235b/506941v/7293ms map1:251b/499715v/1191ms map2:483b/513933v/1142ms"
+   "info": "map0:240b/514580v/5717ms map1:217b/398322v/1201ms map2:487b/522742v/1122ms"
   },
   {
    "name": "3 hp precision (620/260 kept)",
@@ -19,72 +19,72 @@
   {
    "name": "4 weapon missile",
    "status": "PASS",
-   "info": "{\"killed\":2870,\"dscore\":189935,\"chunks\":0,\"back\":570}"
+   "info": "{\"killed\":4060,\"dscore\":113251,\"chunks\":4,\"back\":1151}"
   },
   {
    "name": "4 weapon rail",
    "status": "PASS",
-   "info": "{\"killed\":190,\"dscore\":4122,\"chunks\":0,\"back\":5173}"
+   "info": "{\"killed\":111,\"dscore\":2064,\"chunks\":0,\"back\":180}"
   },
   {
    "name": "4 weapon cutter",
    "status": "PASS",
-   "info": "{\"killed\":7858,\"dscore\":1662145,\"chunks\":3,\"back\":244}"
+   "info": "{\"killed\":14307,\"dscore\":3789966,\"chunks\":4,\"back\":3412}"
   },
   {
    "name": "4 weapon grav",
    "status": "PASS",
-   "info": "{\"killed\":155410,\"dscore\":79022933,\"chunks\":84,\"back\":7159}"
+   "info": "{\"killed\":182067,\"dscore\":100234753,\"chunks\":84,\"back\":10545}"
   },
   {
    "name": "4 weapon orbit",
    "status": "PASS",
-   "info": "{\"killed\":147486,\"dscore\":82149093,\"chunks\":84,\"back\":10269}"
+   "info": "{\"killed\":154980,\"dscore\":88793409,\"chunks\":83,\"back\":8963}"
   },
   {
    "name": "4 weapon demo",
    "status": "PASS",
-   "info": "{\"killed\":2934,\"dscore\":233605,\"chunks\":0,\"back\":2845}"
+   "info": "{\"killed\":3635,\"dscore\":311892,\"chunks\":1,\"back\":3}"
   },
   {
    "name": "4 weapon meteor",
    "status": "PASS",
-   "info": "{\"killed\":196566,\"dscore\":128620556,\"chunks\":84,\"back\":6748}"
+   "info": "{\"killed\":196582,\"dscore\":125286469,\"chunks\":83,\"back\":11315}"
   },
   {
    "name": "4 weapon ball",
    "status": "PASS",
-   "info": "{\"killed\":987,\"dscore\":77022,\"chunks\":0,\"back\":1652}"
+   "info": "{\"killed\":1684,\"dscore\":216285,\"chunks\":2,\"back\":4132}"
   },
   {
    "name": "4 weapon orb",
    "status": "PASS",
-   "info": "{\"killed\":441265,\"dscore\":0,\"chunks\":13,\"back\":1101}"
+   "info": "{\"killed\":488961,\"dscore\":0,\"chunks\":7,\"back\":327}"
   },
   {
    "name": "4 weapon nuke",
    "status": "PASS",
-   "info": "{\"killed\":288105,\"dscore\":0,\"chunks\":84,\"back\":18942}"
+   "info": "{\"killed\":267389,\"dscore\":0,\"chunks\":83,\"back\":28507}"
   },
   {
    "name": "5 zero score for nuke/orb",
    "status": "PASS",
-   "info": "{\"nuke\":{\"dscore\":0,\"nukeTally\":343084,\"otherTally\":0},\"orb\":{\"dscore\":0,\"nukeTally\":431000,\"otherTally\":0},\"missile\":{\"dscore\":91644}}"
+   "info": "{\"nuke\":{\"dscore\":0,\"nukeTally\":367641,\"otherTally\":0},\"orb\":{\"dscore\":0,\"nukeTally\":440583,\"otherTally\":0},\"missile\":{\"dscore\":131751}}"
   },
   {
    "name": "6 rail damage independent of call count",
    "status": "PASS",
-   "info": "{\"n30\":275,\"n120\":217}"
+   "info": "{\"n30\":288,\"n120\":240}"
   },
   {
    "name": "6b chunk damping independent of dt",
    "status": "PASS",
-   "info": "{\"dt30\":{\"maxV\":78,\"n\":15,\"sleeping\":3,\"killed\":13229},\"dt120\":{\"maxV\":78,\"n\":40,\"sleeping\":11,\"killed\":19774}}"
+   "info": "{\"dt30\":{\"maxV\":78,\"n\":14,\"sleeping\":3,\"killed\":13232},\"dt120\":{\"maxV\":78,\"n\":34,\"sleeping\":9,\"killed\":22949}}"
   },
   {
    "name": "7 live integrity after heavy destruction",
    "status": "PASS",
-   "info": "{\"neg\":0,\"mis\":0,\"over\":0,\"cm\":0,\"killed\":154547,\"total\":525964,\"chunks\":45}"
+   "info": "{\"neg\":0,\"mis\":0,\"over\":0,\"cm\":0,\"killed\":138369,\"total\":455029,\"chunks\":62}"
   },
   {
    "name": "8 modes: 60s timer and 3 shots",
@@ -93,8 +93,8 @@
   },
   {
    "name": "8b 60s timer runs on real time",
-   "status": "FAIL",
-   "info": "runLeft 59.984->59.902 in 2.5s"
+   "status": "PASS",
+   "info": "runLeft 59.9->56.2 in 2.5s"
   },
   {
    "name": "9 regen stability + resources",
@@ -114,12 +114,7 @@
   {
    "name": "12 pause blocks firing; same-seed regen is identical",
    "status": "PASS",
-   "info": "{\"same\":true,\"differentNewSeed\":true,\"canFirePaused\":false,\"seed\":1430844389}"
-  },
-  {
-   "name": "13 screenshots",
-   "status": "PASS",
-   "info": "saved"
+   "info": "{\"same\":true,\"differentNewSeed\":true,\"canFirePaused\":false,\"seed\":2161155861}"
   },
   {
    "name": "console errors total",
@@ -132,5 +127,5 @@
    "info": ""
   }
  ],
- "ms": 361316
+ "ms": 174996
 }
