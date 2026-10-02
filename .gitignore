@@ -1,0 +1,5 @@
+work/lib/
+work/test/node_modules/
+work/test/*.png
+work/test/shots/
+work/test/*.log

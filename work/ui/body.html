@@ -1,0 +1,110 @@
+<body>
+<div id="boot">
+  <div class="t">TOKYO TEARDOWN</div>
+  <div class="s" id="bootMsg">初期化中…</div>
+  <div class="bar"><i id="bootBar"></i></div>
+  <div class="tip">左下：移動　右：視点　FIRE：発射（押しながらドラッグで照準）</div>
+  <button class="pb hi" id="bootRetry">再試行</button>
+</div>
+
+<div id="hud" style="display:none">
+  <div id="top">
+    <div id="dmg">
+      <div id="dmgNum">0.0<small>%</small></div>
+      <div id="dmgWrap"><i id="dmgFill"></i></div>
+      <div id="dmgSub"><b id="kChunk">0</b> 塊 ／ <b id="kBld">0</b> 棟</div>
+    </div>
+    <div>
+      <div id="runHud"><div id="runBig">60.0</div><div id="runLbl">残り秒</div></div>
+      <div id="mapName">歌舞伎町</div>
+    </div>
+    <div id="scoreWrap">
+      <div id="scoreBig">0<span>t</span></div>
+      <div id="bldCount">0<span>/ 0 棟</span></div>
+      <div id="scoreSub">0<span>SCORE</span></div>
+    </div>
+  </div>
+  <button id="bPause" aria-label="メニュー">&#9776;</button>
+  <div id="pops"></div>
+  <div id="chain">
+    <div id="chainN">×2</div><div id="chainL">CHAIN</div>
+    <div id="chainBar"><i></i></div><div id="chainRank"></div>
+  </div>
+  <div id="banner"><div class="t"></div><div class="u"></div></div>
+  <div id="cause"></div>
+  <div id="xh"><div class="a"></div><div class="b"></div><div class="c"></div><div class="d"></div><div class="dot"></div></div>
+  <div id="xhInfo"><div id="xhDist">—</div><div id="xhTgt"></div></div>
+  <div id="stick"><i></i></div>
+  <div id="alt">
+    <button class="ab" id="bUp">▲</button>
+    <button class="ab" id="bDn">▼</button>
+  </div>
+  <button id="fire"><span id="fireLbl">FIRE</span><small id="fireSub"></small></button>
+  <button id="det">起爆<span id="detN">0</span></button>
+  <div id="qbar"></div>
+  <div id="wtoast"></div>
+  <div id="hint"></div>
+</div>
+<div id="cutline"></div>
+<div id="perf"></div>
+
+<div id="wsheet" class="ov"><div class="sheet">
+  <h3>兵装 <span id="wsheetMode"></span><button id="wClose" aria-label="閉じる">✕</button></h3>
+  <div id="wgrid"></div>
+  <div id="wdesc">—</div>
+</div></div>
+
+<div id="pmenu" class="ov"><div class="sheet">
+  <h3>MENU<button id="pmClose" aria-label="閉じる">✕</button></h3>
+  <div class="row"><button class="pb hi" id="pmResume">▶ 再開</button></div>
+  <div class="row lbl">設定</div>
+  <div class="row">
+    <button class="pb" id="bSnd">🔊 音</button>
+    <button class="pb" id="bHap">振動</button>
+    <button class="pb" id="bQual">画質: 自動</button>
+    <button class="pb" id="bFx">演出: 標準</button>
+  </div>
+  <div class="row lbl">モード</div>
+  <div class="row" id="pmModes"></div>
+  <div class="row lbl">マップ</div>
+  <div class="row" id="pmMaps"></div>
+  <div class="row lbl">街</div>
+  <div class="row">
+    <button class="pb" id="pmRetry">同じ街で再挑戦</button>
+    <button class="pb" id="pmNew">新しい街を生成</button>
+  </div>
+  <div id="pmSeed">SEED —</div>
+  <div class="row">
+    <button class="pb sub" id="bPerf">性能表示</button>
+    <button class="pb sub" id="bHint">操作ヒント</button>
+  </div>
+</div></div>
+
+<div id="ctxov">
+  <div>描画が中断されました。<br>復旧を待っています…</div>
+  <button class="pb hi" id="ctxReload" style="display:none">再読み込み（記録は保持されます）</button>
+</div>
+
+<div id="result"><div id="rBox">
+  <div id="rTop">DEMOLITION COMPLETE</div>
+  <div id="rTitle">消 滅</div>
+  <div id="rMap">歌舞伎町</div>
+  <div id="rRows">
+    <div class="rRow" id="rr0"><span class="k">解体量</span><span class="v" id="rv0">0</span></div>
+    <div class="rRow" id="rr1"><span class="k">倒壊棟数</span><span class="v" id="rv1">0</span></div>
+    <div class="rRow" id="rr2"><span class="k">ランドマーク</span><span class="v" id="rv2">0</span></div>
+    <div class="rRow" id="rr3"><span class="k">最大連鎖</span><span class="v" id="rv3">0</span></div>
+    <div class="rRow" id="rr4"><span class="k" id="rk4">発射回数</span><span class="v" id="rv4">0</span></div>
+    <div class="rRow" id="rr5"><span class="k">技巧率</span><span class="v" id="rv5">0</span></div>
+  </div>
+  <div id="rBreak">—</div>
+  <div id="rScoreWrap"><div id="rScoreLbl">SCORE</div><div id="rScore">0</div><div id="rBest">—</div></div>
+  <div id="rRankWrap"><div id="rRank">S</div><div id="rRankName">PERFECT</div></div>
+  <div id="rBtns">
+    <button class="rBtn hi" id="rAgain">同じ街でもう一度</button>
+    <button class="rBtn" id="rNewCity">新しい街</button>
+    <button class="rBtn" id="rNext">次のマップ</button>
+  </div>
+</div></div>
+<div id="flash"></div>
+<div id="vig"></div>
