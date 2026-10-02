@@ -9,7 +9,7 @@
   {
    "name": "2 maps generate",
    "status": "PASS",
-   "info": "map0:237b/470348v/13242ms map1:245b/481262v/1022ms map2:491b/499256v/1081ms"
+   "info": "map0:229b/505292v/4933ms map1:265b/548656v/695ms map2:490b/518811v/584ms"
   },
   {
    "name": "3 hp precision (620/260 kept)",
@@ -18,103 +18,108 @@
   },
   {
    "name": "4 weapon missile",
-   "status": "PASS",
-   "info": "{\"killed\":3875,\"dscore\":106245,\"chunks\":1,\"back\":908}"
+   "status": "FAIL",
+   "info": "no destruction {\"killed\":0,\"dscore\":0,\"chunks\":0,\"back\":3901}"
   },
   {
    "name": "4 weapon rail",
    "status": "PASS",
-   "info": "{\"killed\":150,\"dscore\":2196,\"chunks\":0,\"back\":2597}"
+   "info": "{\"killed\":135,\"dscore\":2316,\"chunks\":0,\"back\":771}"
   },
   {
    "name": "4 weapon cutter",
    "status": "PASS",
-   "info": "{\"killed\":11347,\"dscore\":3645549,\"chunks\":2,\"back\":226}"
+   "info": "{\"killed\":10037,\"dscore\":820824,\"chunks\":0,\"back\":2673}"
   },
   {
    "name": "4 weapon grav",
-   "status": "PASS",
-   "info": "{\"killed\":168353,\"dscore\":100611348,\"chunks\":81,\"back\":9464}"
+   "status": "FAIL",
+   "info": "no destruction {\"killed\":0,\"dscore\":0,\"chunks\":0,\"back\":4151}"
   },
   {
    "name": "4 weapon orbit",
-   "status": "PASS",
-   "info": "{\"killed\":155190,\"dscore\":88568835,\"chunks\":83,\"back\":9676}"
+   "status": "FAIL",
+   "info": "no destruction {\"killed\":0,\"dscore\":0,\"chunks\":0,\"back\":4865}"
   },
   {
    "name": "4 weapon demo",
    "status": "PASS",
-   "info": "{\"killed\":2849,\"dscore\":160042,\"chunks\":1,\"back\":1158}"
+   "info": "{\"killed\":3371,\"dscore\":238856,\"chunks\":2,\"back\":2280}"
   },
   {
    "name": "4 weapon meteor",
-   "status": "PASS",
-   "info": "{\"killed\":193837,\"dscore\":121968982,\"chunks\":81,\"back\":4098}"
+   "status": "FAIL",
+   "info": "no destruction {\"killed\":0,\"dscore\":0,\"chunks\":0,\"back\":3198}"
   },
   {
    "name": "4 weapon ball",
-   "status": "PASS",
-   "info": "{\"killed\":1807,\"dscore\":185064,\"chunks\":0,\"back\":8131}"
+   "status": "FAIL",
+   "info": "no destruction {\"killed\":0,\"dscore\":0,\"chunks\":0,\"back\":4697}"
   },
   {
    "name": "4 weapon orb",
-   "status": "PASS",
-   "info": "{\"killed\":458778,\"dscore\":0,\"chunks\":11,\"back\":125}"
+   "status": "FAIL",
+   "info": "exception: page.evaluate: Target page, context or browser has been closed"
   },
   {
    "name": "4 weapon nuke",
-   "status": "PASS",
-   "info": "{\"killed\":296475,\"dscore\":0,\"chunks\":84,\"back\":12673}"
+   "status": "FAIL",
+   "info": "exception: page.evaluate: Target page, context or browser has been closed"
   },
   {
    "name": "5 zero score for nuke/orb",
    "status": "FAIL",
-   "info": "{\"nuke\":{\"dscore\":0,\"nukeTally\":344696,\"otherTally\":0},\"orb\":{\"dscore\":864,\"nukeTally\":464109,\"otherTally\":33},\"missile\":{\"dscore\":170808}}"
+   "info": "exception: page.evaluate: Target page, context or browser has been closed"
   },
   {
    "name": "6 rail damage independent of call count",
-   "status": "PASS",
-   "info": "{\"n30\":275,\"n120\":212}"
+   "status": "FAIL",
+   "info": "exception: page.evaluate: Target page, context or browser has been closed"
   },
   {
    "name": "6b chunk damping independent of dt",
-   "status": "PASS",
-   "info": "{\"dt30\":{\"maxV\":78,\"n\":23,\"sleeping\":9,\"killed\":15363},\"dt120\":{\"maxV\":78,\"n\":32,\"sleeping\":9,\"killed\":22992}}"
+   "status": "FAIL",
+   "info": "exception: page.evaluate: Target page, context or browser has been closed"
   },
   {
    "name": "7 live integrity after heavy destruction",
-   "status": "PASS",
-   "info": "{\"neg\":0,\"mis\":0,\"over\":0,\"cm\":0,\"killed\":103744,\"total\":508240,\"chunks\":44}"
+   "status": "FAIL",
+   "info": "exception: page.evaluate: Target page, context or browser has been closed"
   },
   {
    "name": "8 modes: 60s timer and 3 shots",
-   "status": "PASS",
-   "info": "{\"startedAfterShot\":true,\"clockHook\":true,\"canShootAfter3\":false,\"runOver\":true,\"resultOn\":true}"
+   "status": "FAIL",
+   "info": "exception: page.evaluate: Target page, context or browser has been closed"
   },
   {
    "name": "8b 60s timer runs on real time",
-   "status": "PASS",
-   "info": "runLeft 60.0->57.0 in 2.5s"
+   "status": "FAIL",
+   "info": "exception: page.evaluate: Target page, context or browser has been closed"
   },
   {
    "name": "9 regen stability + resources",
-   "status": "PASS",
-   "info": "geo/tex per cycle: 23g/15t 23g/15t 23g/15t 23g/15t 23g/15t 23g/15t 23g/15t heapMB 78"
+   "status": "FAIL",
+   "info": "exception: page.evaluate: Target page, context or browser has been closed"
   },
   {
    "name": "10 quality toggle restores pixel ratio",
    "status": "FAIL",
-   "info": "{\"pr0\":1,\"prH\":1,\"prL\":1,\"prH2\":1,\"mode\":\"high\"}"
+   "info": "exception: page.evaluate: Target page, context or browser has been closed"
   },
   {
    "name": "11 input: two fingers (stick + fire), pointercancel releases",
    "status": "FAIL",
-   "info": "{\"fwdHeld\":0,\"held\":false,\"heldAfterCancel\":false,\"fwdAfter\":0,\"ptr\":0}"
+   "info": "exception: page.evaluate: Target page, context or browser has been closed"
   },
   {
    "name": "12 pause blocks firing; same-seed regen is identical",
-   "status": "PASS",
-   "info": "{\"same\":true,\"differentNewSeed\":true,\"canFirePaused\":true,\"seed\":3641572429}"
+   "status": "FAIL",
+   "info": "exception: page.evaluate: Target page, context or browser has been closed"
+  },
+  {
+   "name": "13 screenshots",
+   "status": "FAIL",
+   "info": "exception: page.evaluate: Target page, context or browser has been closed"
   },
   {
    "name": "console errors total",
@@ -127,5 +132,5 @@
    "info": ""
   }
  ],
- "ms": 239390
+ "ms": 73684
 }

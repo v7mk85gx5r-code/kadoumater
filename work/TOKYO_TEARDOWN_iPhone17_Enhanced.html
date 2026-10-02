@@ -7822,7 +7822,7 @@ function modeDef(){ return MODES.find(m=>m.id===MODE)||MODES[0]; }
 function shotsLeft(){ const M=modeDef(); return M.shots ? Math.max(0,M.shots-S.shots) : 1e9; }
 /* いま撃てるか。モードの残弾・時間切れ・リザルト表示中で止める */
 function canShoot(){
-  if(runOver||resultOn) return false;
+  if(runOver||resultOn||paused||booting) return false;   // ポーズ中・街の構築中は撃てない
   if(modeDef().shots && S.shots>=modeDef().shots) return false;
   return true;
 }
