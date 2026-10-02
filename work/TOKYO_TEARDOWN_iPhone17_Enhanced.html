@@ -450,6 +450,7 @@ function nK(n){ const v=n*dtK; let k=v|0; if(Math.random()<v-k) k++; return k; }
 function dampK(k){ return Math.pow(k,dtK); }                            // 毎フレーム k 倍の減衰
 /* ループの状態（起動時に resetWorld/resize から触るので先頭で宣言） */
 let last=0, paused=false, ctxLost=false, runElapsed=0, realDt=.016, needFrame=true;
+let runStartAt=0, pausedTotal=0, pauseStart=0;   // モードの時計：最初の1発からの壁時計時間から、ポーズ・非表示の時間を除く
 let onPauseChange=null, onCtxLost=null;   // UI 側が差し替える（ポーズメニュー／描画中断の表示）
 /* ══════════ 空と大気の色 ══════════
    東京の夜空は黒くない。地上の光が大気と雲に散乱し、地平線付近が琥珀色に光る。
@@ -3546,7 +3547,7 @@ function resetWorld(){
   resultOn=false; runStart=performance.now();
   { const r=document.getElementById('result'); if(r) r.classList.remove('on'); }
   S.score=0; S.combo=1; S.comboT=0; S.comboHits=0; S.peak=1; S.shots=0; resetTally();
-  runOver=false; runStarted=false; runLeft=modeDef().sec||0; runElapsed=0; runEndT=0; settleT=0; runEndTitle=null;
+  runOver=false; runStarted=false; runLeft=modeDef().sec||0; runElapsed=0; runStartAt=0; pausedTotal=0; pauseStart=paused?performance.now():0; runEndT=0; settleT=0; runEndTitle=null;
   LMS=[]; lmT=0; bannerLmT=0; fireHeld=false; TOPPLING=[];
 
 }
@@ -7828,7 +7829,7 @@ function canShoot(){
 }
 /* 最初の1発で計時開始（それまでは位置取りが自由） */
 function noteShot(){
-  if(!runStarted){ runStarted=true; runStart=performance.now(); }
+  if(!runStarted){ runStarted=true; runStart=performance.now(); runStartAt=runStart; pausedTotal=0; }
 }
 function setMode(id){
   MODE=id;
@@ -9339,12 +9340,15 @@ function setPaused(v,reason){
   if(paused===v) return;
   paused=v;
   if(v){
+    pauseStart=performance.now();
     if(typeof releasePointers==='function') releasePointers();
     if(railOn){ railOn=false; Snd.humOff(); }
     fireHeld=false;
     Snd.pause();
   } else {
     last=performance.now();
+    if(pauseStart) pausedTotal+=last-pauseStart;
+    pauseStart=0;
     Snd.resume();
   }
   if(onPauseChange) onPauseChange(v,reason);
@@ -9373,7 +9377,7 @@ function loop(now){
   }
   dt*=slowK;
   if(hitStopT>0){ hitStopT-=realDt; dt*=.05; }     // ヒットストップ：大きな着弾の瞬間だけ時間がほぼ止まる
-  if(runStarted && !runOver && !resultOn) runElapsed+=Math.min(5,Math.max(0,rawReal));   // モードの時計は実時間（処理落ちの長いフレームも数える。非表示中は last を戻すので含まれない）
+  if(runStarted && !runOver && !resultOn) runElapsed=Math.max(0,(now-runStartAt-pausedTotal)/1000);   // モードの時計：壁時計の経過（処理落ち・スローで延びない）からポーズ・非表示を除く
   Snd.f(realDt);
   readKeys();
   const CW=WPN.find(w=>w.id===wpn);
