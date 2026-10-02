@@ -9168,7 +9168,10 @@ function openMenu(reason){
   pmenu.classList.add('on');
 }
 function closeMenu(){ pmenu.classList.remove('on'); setPaused(false); }
-onPauseChange=(v,reason)=>{ if(v && !pmenu.classList.contains('on') && !resultOn){ renderMenu(); pmenu.classList.add('on'); } };
+onPauseChange=(v,reason)=>{
+  if(v){ if(!pmenu.classList.contains('on') && !resultOn){ renderMenu(); pmenu.classList.add('on'); } }
+  else pmenu.classList.remove('on');                 // 外部から再開された時もメニューを閉じる
+};
 function renderMenu(){
   document.getElementById('bSnd').textContent=S.sound?'🔊 音':'🔇 音 OFF';
   document.getElementById('bSnd').classList.toggle('on',S.sound);

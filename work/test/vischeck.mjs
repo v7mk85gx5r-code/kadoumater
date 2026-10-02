@@ -1,0 +1,21 @@
+import { chromium } from 'playwright'; import fs from 'fs';
+const html=fs.readFileSync('work/TOKYO_TEARDOWN_iPhone17_Enhanced.html','utf8'); const three=fs.readFileSync('work/lib/three.r128.min.js','utf8');
+const browser=await chromium.launch({headless:true,args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--ignore-gpu-blocklist']});
+const ctx=await browser.newContext({viewport:{width:393,height:852},deviceScaleFactor:1,isMobile:true,hasTouch:true});
+const page=await ctx.newPage();
+await page.addInitScript(()=>{ window.TT_DEBUG=true; window.TT_QUALITY='low'; window.__vis=[]; document.addEventListener('visibilitychange',()=>window.__vis.push(document.visibilityState+'@'+Math.round(performance.now()))); });
+await page.route('**/*',async route=>{ const u=route.request().url();
+  if(u.includes('three')&&u.endsWith('.js')) return route.fulfill({status:200,contentType:'application/javascript',body:three});
+  if(u.startsWith('http://local.test/')) return route.fulfill({status:200,contentType:'text/html',body:html}); return route.abort(); });
+await page.goto('http://local.test/index.html');
+await page.waitForFunction(()=>window.__tt&&!window.__tt.booting(),null,{timeout:150000}).catch(()=>{});
+const before=await page.evaluate(()=>({paused:window.__tt.isPaused(),vis:window.__vis.slice(),hidden:document.hidden}));
+await page.screenshot({path:'work/test/vis_tmp.png',timeout:120000});
+const after=await page.evaluate(()=>({paused:window.__tt.isPaused(),vis:window.__vis.slice(),hidden:document.hidden,menu:document.getElementById('pmenu').classList.contains('on')}));
+// 8b: タイマーは実時間で進む
+await page.evaluate(()=>{ const T=window.__tt; T.closeMenu(); T.setMode('time'); T.genCity(0); for(let i=0;i<300&&T.booting();i++) T.step(1/60); T.cam.pos.set(0,80,260); T.cam.yaw=0; T.cam.pitch=-0.3; T.updCam(0.016); T.selW('missile'); T.setCd(0); T.fireWeapon(); });
+const a=await page.evaluate(()=>window.__tt.runState().runLeft);
+await page.waitForTimeout(2500);
+const b=await page.evaluate(()=>({left:window.__tt.runState().runLeft,paused:window.__tt.isPaused()}));
+console.log(JSON.stringify({before,after,timer:{a,b}}));
+await browser.close();
