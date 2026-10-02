@@ -8050,6 +8050,7 @@ function showResult(){
 }
 function hideResult(){
   resultOn=false;
+  setPaused(false);
   const el=document.getElementById('result');
   if(el) el.classList.remove('on');
   runStart=performance.now();
@@ -9123,7 +9124,7 @@ function onMove(e){
   const p=PTR.get(e.pointerId); if(!p) return;
   if(p.role==='stick') moveStick(e);
   else if(p.role==='look') lookDelta(p,e);
-  else if(p.role==='fire'){ if(!hasRole('look')) lookDelta(p,e); }      // 押しながらドラッグで照準
+  else if(p.role==='fire'){ if(!hasRole('look')) lookDelta(p,e); else { p.x=e.clientX; p.y=e.clientY; } }      // 押しながらドラッグで照準（別の指が視点中は位置だけ追う）
   else if(p.role==='cut'){ p.x=e.clientX; p.y=e.clientY; const c=cutPts(p); if(c.len>26){ showCutLine(c.ax,c.ay,c.bx,c.by); el.xh.classList.add('cut'); } else { hideCutLine(); el.xh.classList.remove('cut'); } }
 }
 function onUp(e){ const p=PTR.get(e.pointerId); if(!p) return; PTR.delete(e.pointerId); endPtr(e.pointerId,p,false); }
@@ -9327,6 +9328,7 @@ applyLevel(0,true);
 if(window.TT_QUALITY) setQuality(window.TT_QUALITY);   // 検証用：起動時の画質を外から固定できる
 boot(.5,'東京を生成中…');
 genCity();
+spawnOverview();
 boot(.6,'街を構築中…');
 document.getElementById('hud').style.display='block';
 try{ const v=parseFloat(localStorage.getItem('tt2_fx')); if(v>0&&v<=1) QUAL.fxK=v; }catch(e){}
@@ -9355,7 +9357,7 @@ function setPaused(v,reason){
 }
 document.addEventListener('visibilitychange',()=>{
   if(document.hidden) setPaused(true,'bg');
-  else last=performance.now();                      // 復帰後の最初の刻みを巨大にしない（再開はメニューから）
+  else { last=performance.now(); if(booting||resultOn) setPaused(false); }   // 構築中・結果画面中は自動で再開（それ以外はメニューから再開）
 });
 window.addEventListener('pagehide',()=>setPaused(true,'bg'));
 function loop(now){
@@ -9365,7 +9367,11 @@ function loop(now){
   if(!(raw>0)||raw>1) raw=.016;                     // 長い空白（バックグラウンド復帰など）はコマ送りにしない
   if(ctxLost) return;
   updPerf(raw);                                     // 実フレーム間隔（上限なし）で性能を見る
-  if(paused){ if(needFrame){ needFrame=false; try{ renderFrame(0); }catch(e){} } return; }
+  if(paused){
+    if(booting){ try{ buildQueued(); }catch(e){} }         // 構築中は止めない（起動画面の下でメニューが押せなくなるのを防ぐ）
+    if(needFrame){ needFrame=false; try{ renderFrame(0); }catch(e){} }
+    return;
+  }
   realDt=Math.min(.05,raw);                         // 入力・カメラ・UI 用：スローモーションの影響を受けない
   let dt=realDt;                                    // シミュレーション用：上限付き
   if(slowT>0){
