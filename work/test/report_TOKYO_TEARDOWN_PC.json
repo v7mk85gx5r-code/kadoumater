@@ -4,7 +4,7 @@
   {
    "name": "1 boot → title (keyboard focus on START)",
    "status": "PASS",
-   "info": "{\"canvas\":true,\"boot\":\"none\",\"hud\":\"block\",\"title\":true,\"knav\":{\"root\":\"title\",\"idx\":0,\"id\":\"tStart\"},\"blds\":223,\"wbar\":13,\"q\":3,\"pr\":0.7607257743127307}"
+   "info": "{\"canvas\":true,\"boot\":\"none\",\"hud\":\"block\",\"title\":true,\"knav\":{\"root\":\"title\",\"idx\":0,\"id\":\"tStart\"},\"blds\":234,\"wbar\":13,\"q\":3,\"pr\":0.7607257743127307}"
   },
   {
    "name": "2 Enter starts the game (no mouse)",
@@ -29,27 +29,27 @@
   {
    "name": "6 cutter from keyboard: hold Space + arrows draws a line, release cuts",
    "status": "PASS",
-   "info": "{\"on\":true,\"len\":544,\"lineW\":544,\"yawSame\":true,\"killed\":13130,\"shots\":1,\"cutAfter\":false,\"tapKilled\":25001,\"shots2\":2}"
+   "info": "{\"on\":true,\"len\":2036,\"lineW\":2036,\"yawSame\":true,\"killed\":14939,\"shots\":1,\"cutAfter\":false,\"tapKilled\":24426,\"shots2\":2}"
   },
   {
    "name": "7 gun: fixed 14 rounds/s (accumulator), tracers",
    "status": "PASS",
-   "info": "{\"killed3\":32,\"noRoundAt3_4\":true,\"roundAt4\":true,\"tracers\":3,\"tracersAfter\":0}"
+   "info": "{\"killed3\":25,\"noRoundAt3_4\":true,\"roundAt4\":true,\"tracers\":3,\"tracersAfter\":0}"
   },
   {
    "name": "7b gun via held Space on the live loop (shots counts once)",
    "status": "PASS",
-   "info": "{\"mid\":{\"gunOn\":true,\"held\":\"key\"},\"r\":{\"shots\":1,\"gunOn\":false,\"killed\":16}}"
+   "info": "{\"mid\":{\"gunOn\":true,\"held\":\"key\"},\"r\":{\"shots\":1,\"gunOn\":false,\"killed\":13}}"
   },
   {
    "name": "8 carpet bombing: 9 bombs walk along the aim line",
    "status": "PASS",
-   "info": "{\"bombs\":9,\"left\":0,\"killed\":20154,\"dscore\":5786104,\"chunks\":12}"
+   "info": "{\"bombs\":9,\"left\":0,\"killed\":19374,\"dscore\":5475742,\"chunks\":12}"
   },
   {
    "name": "9 incendiary: fire pool at impact, spreads and scores as fire",
    "status": "PASS",
-   "info": "{\"peakFires\":13,\"killed\":310,\"fireTally\":37}"
+   "info": "{\"peakFires\":13,\"killed\":532,\"fireTally\":134}"
   },
   {
    "name": "10 zoom (V toggle) narrows FOV and scales sensitivity",
@@ -74,7 +74,7 @@
   {
    "name": "14 SSAO + streak passes render at 最高 without GL errors",
    "status": "PASS",
-   "info": "{\"ao\":true,\"streak\":true,\"aoRT\":true,\"aoW\":960,\"aoH\":540,\"streakRT\":true,\"mips\":6,\"pr\":1,\"w\":1920,\"h\":1080,\"ms\":1922,\"aoK\":0.85,\"stK\":0.32,\"override\":true,\"hidden\":0}"
+   "info": "{\"ao\":true,\"streak\":true,\"aoRT\":true,\"aoW\":960,\"aoH\":540,\"streakRT\":true,\"mips\":6,\"pr\":1,\"w\":1920,\"h\":1080,\"ms\":1257,\"aoK\":0.85,\"stK\":0.32,\"override\":true,\"hidden\":0}"
   },
   {
    "name": "14b SSAO setting toggles the pass (menu button path)",
@@ -84,7 +84,7 @@
   {
    "name": "15 all 13 weapons destroy; nuke/orb score zero",
    "status": "PASS",
-   "info": "missile:3810/73471 gun:63/1236 rail:193/3360 cutter:9577/2680969 carpet:14520/4026433 incend:268/8740 grav:203730/127883878 orbit:149098/85814548 demo:6469/2422819 meteor:199591/135408157 ball:1473/131568 orb:484444/0 nuke:334157/0"
+   "info": "missile:5270/173605 gun:54/720 rail:190/3096 cutter:9140/271480 carpet:24523/14479241 incend:248/8404 grav:185192/104407032 orbit:151378/88679077 demo:4568/499273 meteor:195998/129313260 ball:1387/119244 orb:484353/0 nuke:336175/0"
   },
   {
    "name": "16 3-shot mode by keyboard, result screen navigable by keys",
@@ -99,7 +99,7 @@
   {
    "name": "18 maps + regen stability (caps raised)",
    "status": "PASS",
-   "info": "map0:237b 23g/15t map1:243b 23g/15t map2:485b 23g/15t heapMB 141"
+   "info": "map0:215b 23g/15t map1:224b 23g/15t map2:485b 23g/15t heapMB 150"
   },
   {
    "name": "19 T cycles vantage points, R levels pitch, H hides HUD, F1 keys overlay",
@@ -117,11 +117,6 @@
    "info": "{\"fired\":1,\"held\":\"mouse\",\"dy\":-0.132,\"held2\":null,\"w0\":\"missile*\",\"w1\":\"gun*\",\"z\":1,\"z2\":0,\"locked\":false}"
   },
   {
-   "name": "22 screenshots 1920×1080 (最高画質)",
-   "status": "PASS",
-   "info": "saved 10"
-  },
-  {
    "name": "console errors total",
    "status": "PASS",
    "info": ""
@@ -132,5 +127,5 @@
    "info": ""
   }
  ],
- "ms": 1220967
+ "ms": 465345
 }
