@@ -1,0 +1,180 @@
+<body>
+<div id="boot">
+  <div class="t">TOKYO TEARDOWN<small>PC EDITION</small></div>
+  <div class="s" id="bootMsg">初期化中…</div>
+  <div class="bar"><i id="bootBar"></i></div>
+  <div class="tip">キーボードだけで遊べます：矢印キー＝視点　WASD＝移動　Space＝発射　Z/C＝武器</div>
+  <div class="tip" id="bootNoJs" style="color:#ffb53d;max-width:460px;">この表示のまま進まない場合、開いているのはファイルのプレビューでJavaScriptが実行されていません。<br>Chrome／Edge／Firefox／Safari で直接開いてください。</div>
+  <button class="pb hi" id="bootRetry">再試行</button>
+</div>
+
+<div id="title"><div id="tBox">
+  <div id="tLogo">
+    <div class="a">VOXEL DEMOLITION — TOKYO</div>
+    <div class="b">TOKYO<br><em>TEARDOWN</em></div>
+    <div class="c">PC EDITION</div>
+    <div class="d">歌舞伎町・渋谷スクランブル・西新宿。13種の兵装で街を解体する。<br>
+      <b>マウスがなくても遊べます</b>：矢印キーで視点、WASDで移動、Spaceで発射。<br>
+      マウスを使う場合はクリックで視点をロック（Escで解除）。ゲームパッド（Standard配列）にも対応。</div>
+    <div id="tBtns">
+      <button class="pb hi" id="tStart">▶ START　<kbd>Enter</kbd></button>
+      <button class="pb" id="tKeysBtn">操作方法　<kbd>F1</kbd></button>
+      <button class="pb" id="tMenuBtn">設定・マップ・モード　<kbd>Esc</kbd></button>
+    </div>
+    <div id="tSeed">SEED —</div>
+  </div>
+  <div id="tKeys">
+    <h4>KEYBOARD</h4>
+    <div class="kgrid">
+      <div class="k"><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd></div><div class="v">視点（I J K L でも可）</div>
+      <div class="k"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div><div class="v">移動　<kbd>Shift</kbd> 加速　<kbd>E</kbd>/<kbd>Q</kbd> 上昇／下降</div>
+      <div class="k"><kbd>Space</kbd></div><div class="v">発射（長押しで連射・照射。カッターは押したまま矢印で線を引く）</div>
+      <div class="k"><kbd>Z</kbd><kbd>C</kbd></div><div class="v">前／次の武器　<kbd>1</kbd>〜<kbd>0</kbd> 直接選択　<kbd>Tab</kbd> 一覧</div>
+      <div class="k"><kbd>X</kbd></div><div class="v">装薬を起爆</div>
+      <div class="k"><kbd>V</kbd></div><div class="v">ズーム切替（マウス右ボタン／LT は押している間）</div>
+      <div class="k"><kbd>R</kbd><kbd>T</kbd></div><div class="v">視点を水平に戻す／俯瞰ポイントへ移動</div>
+      <div class="k"><kbd>H</kbd><kbd>F2</kbd></div><div class="v">HUD表示切替／性能表示</div>
+      <div class="k"><kbd>Esc</kbd></div><div class="v">メニュー（設定・マップ・モード）。メニューも矢印キーと Enter で操作</div>
+      <div class="h">MOUSE（任意）</div>
+      <div class="k">移動</div><div class="v">視点（クリックでロック）</div>
+      <div class="k">左／右／ホイール</div><div class="v">発射／ズーム／武器切替</div>
+      <div class="h">GAMEPAD（任意）</div>
+      <div class="k">L / R スティック</div><div class="v">移動／視点　<b>RT</b> 発射　<b>LT</b> ズーム　<b>LB/RB</b> 武器　<b>A/B</b> 上昇/下降　<b>X</b> 起爆　<b>Y</b> 一覧　<b>Start</b> メニュー</div>
+    </div>
+  </div>
+</div></div>
+
+<div id="hud" style="display:none">
+  <div id="top">
+    <div id="dmg">
+      <div id="dmgNum">0.0<small>%</small></div>
+      <div id="dmgWrap"><i id="dmgFill"></i></div>
+      <div id="dmgSub"><b id="kChunk">0</b> 塊 ／ <b id="kBld">0</b> 棟</div>
+    </div>
+    <div id="mid">
+      <div id="runHud"><div id="runBig">60.0</div><div id="runLbl">残り秒</div></div>
+      <div id="mapName">歌舞伎町</div>
+      <div id="modeTag">FREE PLAY</div>
+    </div>
+    <div id="scoreWrap">
+      <div id="scoreBig">0<span>t</span></div>
+      <div id="bldCount">0<span>/ 0 棟</span></div>
+      <div id="scoreSub">0<span>SCORE</span></div>
+    </div>
+  </div>
+  <div id="pops"></div>
+  <div id="chain">
+    <div id="chainN">×2</div><div id="chainL">CHAIN</div>
+    <div id="chainBar"><i></i></div><div id="chainRank"></div>
+  </div>
+  <div id="banner"><div class="t"></div><div class="u"></div></div>
+  <div id="cause"></div>
+  <div id="xh"><div class="a"></div><div class="b"></div><div class="c"></div><div class="d"></div><div class="dot"></div></div>
+  <div id="xhCd"></div>
+  <div id="xhInfo"><div id="xhDist">—</div><div id="xhTgt"></div></div>
+  <button id="det">起爆 <kbd>X</kbd><span id="detN">0</span></button>
+  <div id="wbar"></div>
+  <div id="wtoast"></div>
+  <div id="mmWrap"><canvas id="minimap" width="420" height="420"></canvas><div id="mmLbl">MAP　N↑</div></div>
+  <div id="keyhint"></div>
+  <div id="hint"></div>
+</div>
+<div id="cutline"></div>
+<div id="perf"></div>
+
+<div id="wpanel" class="ov"><div class="sheet">
+  <h3>兵装 <span class="hk">矢印で選択 ／ Enter で決定 ／ Tab・Esc で閉じる</span><button id="wClose" aria-label="閉じる">✕</button></h3>
+  <div id="wgrid"></div>
+  <div id="wdesc">—</div>
+</div></div>
+
+<div id="pmenu" class="ov"><div class="sheet">
+  <h3>MENU <span class="hk">矢印キーで移動 ／ Enter で決定 ／ Esc で閉じる</span><button id="pmClose" aria-label="閉じる">✕</button></h3>
+  <div class="row"><button class="pb hi" id="pmResume">▶ 再開</button><button class="pb sub" id="bHint">操作方法 (F1)</button><button class="pb sub" id="bFull">全画面</button></div>
+  <div class="row lbl">画質</div>
+  <div class="row"><span class="lb">プリセット</span><div class="row" id="pmQualRow" style="margin:0;flex:1"></div></div>
+  <div class="row"><span class="lb">解像度スケール</span><div class="row" id="pmScaleRow" style="margin:0;flex:1"></div></div>
+  <div class="row"><span class="lb">効果</span><button class="pb" id="bAO">SSAO</button><button class="pb" id="bFx">演出</button><button class="pb" id="bHud">HUD</button><button class="pb" id="bPerf">性能表示</button></div>
+  <div class="row lbl">操作</div>
+  <div class="row"><span class="lb">視野角</span><div class="row" id="pmFovRow" style="margin:0;flex:1"></div></div>
+  <div class="row"><span class="lb">視点の速さ</span><button class="pb sm" id="pmSensM">−</button><span id="pmSensV">5</span><button class="pb sm" id="pmSensP">＋</button>
+    <button class="pb" id="bInvY">Y軸反転</button><button class="pb" id="bSnd">音</button></div>
+  <div class="row lbl">モード</div>
+  <div class="row" id="pmModes"></div>
+  <div class="row lbl">マップ</div>
+  <div class="row" id="pmMaps"></div>
+  <div class="row lbl">街</div>
+  <div class="row"><button class="pb" id="pmRetry">同じ街で再挑戦</button><button class="pb" id="pmNew">新しい街を生成</button><button class="pb sub" id="pmTitle">タイトルへ</button></div>
+  <div id="pmSeed">SEED —</div>
+</div></div>
+
+<div id="keys" class="ov"><div class="sheet">
+  <h3>操作方法 <span class="hk">Esc / Enter で閉じる</span><button id="kClose" aria-label="閉じる">✕</button></h3>
+  <div class="cols">
+    <div class="kgrid">
+      <div class="h">KEYBOARD — マウスなしで完結</div>
+      <div class="k"><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd></div><div class="v">視点（I J K L でも可）</div>
+      <div class="k"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div><div class="v">移動　<kbd>Shift</kbd> 加速</div>
+      <div class="k"><kbd>E</kbd> / <kbd>Q</kbd></div><div class="v">上昇 ／ 下降</div>
+      <div class="k"><kbd>Space</kbd> / <kbd>Enter</kbd></div><div class="v">発射。長押しで連射（機関砲）・照射（レールガン）</div>
+      <div class="k"><kbd>Space</kbd>＋矢印</div><div class="v">解体カッター：押したまま矢印で線を引き、離して切断。押すだけで水平切り</div>
+      <div class="k"><kbd>Z</kbd> / <kbd>C</kbd></div><div class="v">前／次の武器</div>
+      <div class="k"><kbd>1</kbd>〜<kbd>0</kbd> <kbd>-</kbd> <kbd>^</kbd> <kbd>¥</kbd></div><div class="v">武器を直接選択（13種）</div>
+      <div class="k"><kbd>Tab</kbd></div><div class="v">武器一覧（矢印で選び Enter）</div>
+      <div class="k"><kbd>X</kbd></div><div class="v">置いた装薬を起爆</div>
+      <div class="k"><kbd>V</kbd></div><div class="v">ズーム切替</div>
+      <div class="k"><kbd>R</kbd> / <kbd>T</kbd></div><div class="v">視点を水平に ／ 俯瞰ポイントを順に移動</div>
+      <div class="k"><kbd>H</kbd> / <kbd>F2</kbd></div><div class="v">HUD表示切替 ／ 性能表示</div>
+      <div class="k"><kbd>Esc</kbd> / <kbd>P</kbd></div><div class="v">メニュー（キーで操作できます）</div>
+    </div>
+    <div class="kgrid">
+      <div class="h">MOUSE（任意）</div>
+      <div class="k">移動</div><div class="v">視点。画面クリックでロック、Esc で解除</div>
+      <div class="k">左ボタン</div><div class="v">発射（押したまま動かすとカッターの線）</div>
+      <div class="k">右ボタン</div><div class="v">押している間ズーム</div>
+      <div class="k">ホイール</div><div class="v">武器切替</div>
+      <div class="k">中ボタン</div><div class="v">起爆</div>
+      <div class="h">GAMEPAD（任意・Standard配列）</div>
+      <div class="k">左スティック</div><div class="v">移動（押し込みで加速）</div>
+      <div class="k">右スティック</div><div class="v">視点（押し込みでズーム切替）</div>
+      <div class="k">RT / LT</div><div class="v">発射 ／ ズーム</div>
+      <div class="k">LB / RB</div><div class="v">前／次の武器</div>
+      <div class="k">A / B</div><div class="v">上昇 ／ 下降（メニューでは決定／戻る）</div>
+      <div class="k">X / Y</div><div class="v">起爆 ／ 武器一覧</div>
+      <div class="k">十字キー</div><div class="v">左右：武器　上：水平に　下：俯瞰</div>
+      <div class="k">Start / Back</div><div class="v">メニュー ／ HUD切替</div>
+    </div>
+  </div>
+  <div class="row" style="justify-content:center;margin-top:16px"><button class="pb" id="kClose2" style="flex:0 0 auto;min-width:160px">閉じる</button></div>
+</div></div>
+
+<div id="ctxov">
+  <div>描画が中断されました。<br>復旧を待っています…</div>
+  <button class="pb hi" id="ctxReload" style="display:none">再読み込み（記録は保持されます）</button>
+</div>
+
+<div id="result"><div id="rBox">
+  <div id="rTop">DEMOLITION COMPLETE</div>
+  <div id="rTitle">消 滅</div>
+  <div id="rMap">歌舞伎町</div>
+  <div id="rRows">
+    <div class="rRow" id="rr0"><span class="k">解体量</span><span class="v" id="rv0">0</span></div>
+    <div class="rRow" id="rr1"><span class="k">倒壊棟数</span><span class="v" id="rv1">0</span></div>
+    <div class="rRow" id="rr2"><span class="k">ランドマーク</span><span class="v" id="rv2">0</span></div>
+    <div class="rRow" id="rr3"><span class="k">最大連鎖</span><span class="v" id="rv3">0</span></div>
+    <div class="rRow" id="rr4"><span class="k" id="rk4">発射回数</span><span class="v" id="rv4">0</span></div>
+    <div class="rRow" id="rr5"><span class="k">技巧率</span><span class="v" id="rv5">0</span></div>
+  </div>
+  <div id="rBreak">—</div>
+  <div id="rScoreWrap"><div id="rScoreLbl">SCORE</div><div id="rScore">0</div><div id="rBest">—</div></div>
+  <div id="rRankWrap"><div id="rRank">S</div><div id="rRankName">PERFECT</div></div>
+  <div id="rBtns">
+    <button class="rBtn hi" id="rAgain">同じ街でもう一度</button>
+    <button class="rBtn" id="rNewCity">新しい街</button>
+    <button class="rBtn" id="rNext">次のマップ</button>
+  </div>
+  <div id="rKeys">←→ で選択　Enter で決定</div>
+</div></div>
+<div id="flash"></div>
+<div id="vig"></div>
+

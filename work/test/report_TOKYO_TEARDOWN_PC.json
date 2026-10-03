@@ -1,0 +1,136 @@
+{
+ "file": "work/TOKYO_TEARDOWN_PC.html",
+ "results": [
+  {
+   "name": "1 boot → title (keyboard focus on START)",
+   "status": "PASS",
+   "info": "{\"canvas\":true,\"boot\":\"none\",\"hud\":\"block\",\"title\":true,\"knav\":{\"root\":\"title\",\"idx\":0,\"id\":\"tStart\"},\"blds\":223,\"wbar\":13,\"q\":3,\"pr\":0.7607257743127307}"
+  },
+  {
+   "name": "2 Enter starts the game (no mouse)",
+   "status": "PASS",
+   "info": "{\"title\":false,\"blocked\":false,\"paused\":false,\"hintOn\":false}"
+  },
+  {
+   "name": "3 arrow keys look, WASD move, E/Q altitude, Shift boost",
+   "status": "PASS",
+   "info": "{\"dyaw\":-1.08,\"dpitch\":1.08,\"stop\":0,\"fwd\":1,\"boost\":1,\"dz\":-9.3,\"up\":1,\"dn\":-1,\"inpAfter\":{\"fwd\":0,\"side\":0,\"up\":0,\"boost\":0}}"
+  },
+  {
+   "name": "4 weapon keys: digits, Z/C cycle, Tab panel + arrows + Enter",
+   "status": "PASS",
+   "info": "{\"a\":{\"d2\":\"gun*\",\"c\":\"rail*\",\"zz\":\"missile*\",\"d0\":\"meteor*\",\"minus\":\"ball*\"},\"b\":{\"panel\":true,\"knav\":{\"root\":\"wpanel\",\"idx\":11,\"id\":\"w_ball\"},\"blocked\":true},\"c\":{\"root\":\"wpanel\",\"idx\":13,\"id\":\"w_nuke\"},\"d\":{\"panel\":false,\"sel\":\"nuke*\",\"blocked\":false}}"
+  },
+  {
+   "name": "5 Space fires missile; held Space does not auto-fire the cutter",
+   "status": "PASS",
+   "info": "{\"fired\":1,\"held\":\"key\",\"held2\":null,\"shots\":1}"
+  },
+  {
+   "name": "6 cutter from keyboard: hold Space + arrows draws a line, release cuts",
+   "status": "PASS",
+   "info": "{\"on\":true,\"len\":544,\"lineW\":544,\"yawSame\":true,\"killed\":13130,\"shots\":1,\"cutAfter\":false,\"tapKilled\":25001,\"shots2\":2}"
+  },
+  {
+   "name": "7 gun: fixed 14 rounds/s (accumulator), tracers",
+   "status": "PASS",
+   "info": "{\"killed3\":32,\"noRoundAt3_4\":true,\"roundAt4\":true,\"tracers\":3,\"tracersAfter\":0}"
+  },
+  {
+   "name": "7b gun via held Space on the live loop (shots counts once)",
+   "status": "PASS",
+   "info": "{\"mid\":{\"gunOn\":true,\"held\":\"key\"},\"r\":{\"shots\":1,\"gunOn\":false,\"killed\":16}}"
+  },
+  {
+   "name": "8 carpet bombing: 9 bombs walk along the aim line",
+   "status": "PASS",
+   "info": "{\"bombs\":9,\"left\":0,\"killed\":20154,\"dscore\":5786104,\"chunks\":12}"
+  },
+  {
+   "name": "9 incendiary: fire pool at impact, spreads and scores as fire",
+   "status": "PASS",
+   "info": "{\"peakFires\":13,\"killed\":310,\"fireTally\":37}"
+  },
+  {
+   "name": "10 zoom (V toggle) narrows FOV and scales sensitivity",
+   "status": "PASS",
+   "info": "{\"z\":1,\"fov\":33,\"fb\":33,\"zoomedTurn\":-0.0968,\"normalTurn\":-0.22,\"zAfter\":0}"
+  },
+  {
+   "name": "11 Esc menu: pauses, keyboard navigation, Enter on 再開 resumes",
+   "status": "PASS",
+   "info": "{\"a\":{\"menu\":true,\"paused\":true,\"knav\":{\"root\":\"pmenu\",\"idx\":1,\"id\":\"pmResume\"},\"canShoot\":false},\"b\":\"pmS_75\",\"c\":\"pmResume\",\"d\":{\"menu\":false,\"paused\":false},\"e\":true,\"f\":{\"menu\":false,\"paused\":false}}"
+  },
+  {
+   "name": "12 menu settings by keyboard: quality/scale/FOV/sensitivity persist",
+   "status": "PASS",
+   "info": "{\"lv\":1,\"mode\":\"high\",\"pr150\":1.24,\"pr50\":0.5,\"fov\":90,\"sens\":6,\"saved\":{\"q\":\"high\",\"scale\":1,\"fov\":90,\"sens\":5},\"menu\":false,\"paused\":false}"
+  },
+  {
+   "name": "13 gamepad (standard mapping) moves, looks, fires, navigates menus",
+   "status": "PASS",
+   "info": "{\"dyaw\":-0.811,\"fwd\":1,\"held\":\"pad\",\"held2\":null,\"w0\":\"incend*\",\"w1\":\"grav*\",\"menu\":true,\"k0\":\"pmResume\",\"k1\":\"pmS_75\",\"menu2\":false,\"paused\":false}"
+  },
+  {
+   "name": "14 SSAO + streak passes render at 最高 without GL errors",
+   "status": "PASS",
+   "info": "{\"ao\":true,\"streak\":true,\"aoRT\":true,\"aoW\":960,\"aoH\":540,\"streakRT\":true,\"mips\":6,\"pr\":1,\"w\":1920,\"h\":1080,\"ms\":1922,\"aoK\":0.85,\"stK\":0.32,\"override\":true,\"hidden\":0}"
+  },
+  {
+   "name": "14b SSAO setting toggles the pass (menu button path)",
+   "status": "PASS",
+   "info": "{\"on0\":true,\"off\":false,\"aoLbl\":\"SSAO OFF\",\"k\":0,\"rt\":false,\"on\":true,\"k2\":0.85,\"saved\":true,\"menu\":false}"
+  },
+  {
+   "name": "15 all 13 weapons destroy; nuke/orb score zero",
+   "status": "PASS",
+   "info": "missile:3810/73471 gun:63/1236 rail:193/3360 cutter:9577/2680969 carpet:14520/4026433 incend:268/8740 grav:203730/127883878 orbit:149098/85814548 demo:6469/2422819 meteor:199591/135408157 ball:1473/131568 orb:484444/0 nuke:334157/0"
+  },
+  {
+   "name": "16 3-shot mode by keyboard, result screen navigable by keys",
+   "status": "PASS",
+   "info": "{\"a\":{\"canShoot\":false,\"shots\":3,\"resultOn\":true,\"runOver\":true,\"knav\":{\"root\":\"result\",\"idx\":0,\"id\":\"rAgain\"},\"blocked\":true},\"b\":\"rNewCity\",\"c\":{\"resultOn\":false,\"paused\":false,\"knav\":{\"root\":null,\"idx\":0,\"id\":\"rAgain\"},\"shots\":0}}"
+  },
+  {
+   "name": "17 hp precision, integrity, same-seed regen",
+   "status": "PASS",
+   "info": "{\"over\":0,\"mis\":0,\"neg\":0,\"mis2\":0,\"same\":true,\"type\":\"Uint16Array\"}"
+  },
+  {
+   "name": "18 maps + regen stability (caps raised)",
+   "status": "PASS",
+   "info": "map0:237b 23g/15t map1:243b 23g/15t map2:485b 23g/15t heapMB 141"
+  },
+  {
+   "name": "19 T cycles vantage points, R levels pitch, H hides HUD, F1 keys overlay",
+   "status": "PASS",
+   "info": "{\"v1\":1,\"y1\":240,\"pitch\":0,\"off\":true,\"on\":true,\"keys\":true,\"blocked\":true,\"keys2\":false,\"v\":0}"
+  },
+  {
+   "name": "20 pause/visibility: blur releases keys and fire; menu blocks input",
+   "status": "PASS",
+   "info": "{\"before\":{\"fwd\":1,\"held\":\"key\"},\"after\":{\"fwd\":0,\"held\":null,\"keysW\":0},\"inMenu\":null}"
+  },
+  {
+   "name": "21 mouse (no lock): click fires, drag looks, wheel cycles, RMB zooms",
+   "status": "PASS",
+   "info": "{\"fired\":1,\"held\":\"mouse\",\"dy\":-0.132,\"held2\":null,\"w0\":\"missile*\",\"w1\":\"gun*\",\"z\":1,\"z2\":0,\"locked\":false}"
+  },
+  {
+   "name": "22 screenshots 1920×1080 (最高画質)",
+   "status": "PASS",
+   "info": "saved 10"
+  },
+  {
+   "name": "console errors total",
+   "status": "PASS",
+   "info": ""
+  },
+  {
+   "name": "page errors total",
+   "status": "PASS",
+   "info": ""
+  }
+ ],
+ "ms": 1220967
+}
