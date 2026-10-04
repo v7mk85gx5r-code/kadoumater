@@ -269,6 +269,27 @@ rep("  C.uCA.value=0.0035+caPulse*0.022;","  C.uCA.value=0.0012+caPulse*0.006;")
 rep("  TRFcars:()=>TRF.cars, PARKED:()=>PARKED, causeToast:causeToast, chipTest:()=>MATS,",
     "  TRFcars:()=>TRF.cars, PARKED:()=>PARKED, causeToast:causeToast, chipTest:()=>MATS,\n  pc:PCDBG, gunOn:()=>gunOn, gunTick:gunTick, tracers:()=>tracers, fovBase:fovBase, zoomK:()=>zoomK, rayCast:rayCast, renderAO:renderAO,")
 
+# ── 機能モジュール（work/pc/feat/*.py）を名前順に適用 ──
+import importlib.util, glob
+class _Src:
+    def __init__(self): self.d={'ui':rd(D+'ui_pc.js'),'css':rd(D+'style_pc.css'),'body':rd(D+'body_pc.html')}
+    def rep(self,key,old,new,count=1):
+        c=self.d[key].count(old)
+        if c!=count: raise SystemExit('SRC PATTERN COUNT MISMATCH %s (%d != %d): %s'%(key,c,count,old[:160]))
+        self.d[key]=self.d[key].replace(old,new)
+FEATS=sorted(glob.glob(D+'feat/*.py'))
+if FEATS:
+    # ソース（ui/css/body）はすでに差し込み済みなので、ソースへの置換は生成物にも同じ置換として当てる
+    src=_Src()
+    def src_rep(key,old,new,count=1):
+        src.rep(key,old,new,count); rep(old,new,count)
+    src.rep_both=src_rep
+    for f in FEATS:
+        spec=importlib.util.spec_from_file_location('feat_'+os.path.basename(f)[:-3], f)
+        m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+        n0=n
+        m.apply(rep, between, src)
+        print('feat', os.path.basename(f), getattr(m,'TITLE',''), '+%d'%(n-n0))
 open(OUT,'w',encoding='utf-8').write(t)
 shutil.copyfile(OUT, ROOT+'/TOKYO_TEARDOWN_PC.html')
 print('applied',n,'patches; size',len(t))
