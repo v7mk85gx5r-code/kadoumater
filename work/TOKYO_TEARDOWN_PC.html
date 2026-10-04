@@ -292,6 +292,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
 #flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:20;}
 #vig{position:absolute;inset:0;pointer-events:none;z-index:9;background:radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,.45) 100%);}
 
+@media (min-resolution:2dppx){ .q,.w,.sheet,.pb,#minimap,#wtoast,#hint,#tut,#tKeys,.rBtn,#det{border-width:.5px;} .fd{border-left-width:2px;} }
 @media (max-width:1100px){
   #dmgNum,#scoreBig,#runBig{font-size:32px;}
   .q{width:58px;height:62px;} .q .ic{font-size:19px;} .q .n{font-size:8.5px;}
@@ -319,6 +320,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
     <div class="d">歌舞伎町・渋谷スクランブル・西新宿。13種の兵装で街を解体する。<br>
       <b>マウスがなくても遊べます</b>：矢印キーで視点、WASDで移動、Spaceで発射。<br>
       マウスを使う場合はクリックで視点をロック（Escで解除）。ゲームパッド（Standard配列）にも対応。</div>
+    <div class="tPick"><span>操作</span><div id="tInput"></div></div>
     <div class="tPick"><span>マップ</span><div id="tMaps"></div></div>
     <div class="tPick"><span>モード</span><div id="tModes"></div></div>
     <div id="tBtns">
@@ -9587,7 +9589,8 @@ function renderPanel(){
   WPN.forEach((w,i)=>{ const b=wSlot(w,i,'w'); b.addEventListener('click',e=>{ e.stopPropagation(); selW(w.id,true); closePanel(); }); wgrid.appendChild(b); });
   showWDesc(curW());
 }
-function showWDesc(W){ el.wdesc.innerHTML='<b>'+W.n+'</b>　'+W.d; }
+const WTIP={missile:'まずはこれ。連打できる',gun:'窓と外壁を削る。長押し',rail:'照射しながら視点を動かすと切れる',cutter:'足元を切って隣へ倒すと高得点',carpet:'通りに沿って撃つと効率がいい',incend:'木造（ゴールデン街）に効く',grav:'密集地の中心に置く',orbit:'高層ビルの真上から',demo:'片側に寄せて置くと倒す向きが決まる',meteor:'爆発しない。上から貫く',ball:'当てた方向へ倒れる',orb:'加点なし。最後の掃除用',nuke:'加点なし。最後の掃除用'};
+function showWDesc(W){ const i=WPN.indexOf(W); el.wdesc.innerHTML='<b>'+W.n+'</b>　'+W.d+'<br><span style="color:var(--dim);font-size:11px">キー '+WKEYS[i]+'　'+(W.cont?'連続（長押し）':(W.cd>=1?'再使用 '+W.cd+' 秒':'連射間隔 '+W.cd+' 秒'))+'　'+(WTIP[W.id]||'')+'</span>'; }
 const wpanel=document.getElementById('wpanel');
 function panelOpen(){ return wpanel.classList.contains('on'); }
 function openPanel(){ if(panelOpen()) return; releasePointers(); renderPanel(); wpanel.classList.add('on'); knavOpen(wpanel,'w_'+wpn); }
@@ -9624,16 +9627,17 @@ function updWeaponUI(){
 function cycleW(dir){ const i=WPN.findIndex(w=>w.id===wpn); selW(WPN[(i+dir+WPN.length)%WPN.length].id,true); }
 function updKeyHint(){
   const W=curW();
-  el.keyhint.innerHTML='<b>'+W.n+'</b>　'+(WHINT[W.id]||'')+'<br><span>WASD 移動　↑↓←→ 視点　E/Q 上下　Shift 加速　Z/C 武器　Tab 一覧　V ズーム　T 俯瞰　M 地図　Esc メニュー　/ 操作一覧'+(PAD.on?'　🎮 パッド有効':'')+'</span>';
+  el.keyhint.innerHTML='<b>'+W.n+'</b>　'+(WHINT[W.id]||'')+'<br><span>'+(PCS.istyle==='gp'?'左スティック 移動　右スティック 視点　RT 発射　LB/RB 武器　Y 一覧　X 起爆　Start メニュー':(PCS.istyle==='pad'?'WASD 移動　指の動き＝視点　クリック 発射　二本指スクロール 武器　Z/C 武器　Tab 一覧　Esc メニュー':'WASD 移動　↑↓←→ 視点　E/Q 上下　Shift 加速　Z/C 武器　Tab 一覧　V ズーム　T 俯瞰　M 地図　Esc メニュー　/ 操作一覧'))+(PAD.on?'　🎮 パッド有効':'')+'</span>';
 }
 /* ══════════ 設定（端末に保存） ══════════ */
-const PCS={q:'auto',scale:1,fov:75,sens:5,invY:false,ao:true,snd:true,fx:1,hud:true,mlook:'lock',fps:0,amb:1};   // amb: 環境音 0/0.5/1   // fps: 0=無制限（ProMotion なら 120）   // mlook: lock | hover | drag
+const PCS={q:'auto',scale:1,fov:75,sens:5,invY:false,ao:true,snd:true,fx:1,hud:true,mlook:'lock',fps:0,amb:1,istyle:'kb'};   // istyle: kb | mouse | pad(トラックパッド) | gp   // amb: 環境音 0/0.5/1   // fps: 0=無制限（ProMotion なら 120）   // mlook: lock | hover | drag
 function loadPCS(){ try{ const o=JSON.parse(localStorage.getItem('tt_pc_v1')||'null'); if(o&&typeof o==='object') Object.assign(PCS,o); }catch(e){} }
 function savePCS(){ try{ localStorage.setItem('tt_pc_v1',JSON.stringify(PCS)); }catch(e){} }
 function applyPCS(){
   loadPCS();
   PCS.scale=clampN(+PCS.scale||1,.5,2); PCS.fov=clampN(+PCS.fov||75,55,110); PCS.sens=clampN((+PCS.sens||5)|0,1,10);
   if(!['lock','hover','drag'].includes(PCS.mlook)) PCS.mlook='lock';
+  if(!['kb','mouse','pad','gp'].includes(PCS.istyle)) PCS.istyle='kb';
   fpsCap=[0,60,30].includes(+PCS.fps)?+PCS.fps:0;
   if(![0,.5,1].includes(+PCS.amb)) PCS.amb=1; Snd.setAmb(+PCS.amb>0, +PCS.amb);
   resScale=PCS.scale; aoUser=!!PCS.ao; fovUser=PCS.fov; S.sound=!!PCS.snd; QUAL.fxK=PCS.fx<1?.5:1;
@@ -9792,6 +9796,13 @@ function readKeys(){
   keyLook.x = kx ? keyLook.x+(kx-keyLook.x)*Math.min(1,dt*4.5) : 0;    // 離した瞬間に止まる（狙いが流れない）
   keyLook.y = ky ? keyLook.y+(ky-keyLook.y)*Math.min(1,dt*4.5) : 0;
   if(Math.abs(keyLook.x)>.003||Math.abs(keyLook.y)>.003){ const px=(CUT.on?CUT_PX:KEYLOOK_PX)*dt; lookPx(keyLook.x*px, keyLook.y*px); }
+  if(PCS.mlook==='hover' && !locked && mouseAt.in && mouseUsed && !CUT.on){        // 画面端で振り向きが続く（トラックパッド向け）
+    const ex=Math.max(1,window.innerWidth*.04), ey=Math.max(1,window.innerHeight*.06);
+    let kx=0, ky=0;
+    if(mouseAt.x<ex) kx=-(1-mouseAt.x/ex); else if(mouseAt.x>window.innerWidth-ex) kx=(1-(window.innerWidth-mouseAt.x)/ex);
+    if(mouseAt.y<ey) ky=-(1-mouseAt.y/ey); else if(mouseAt.y>window.innerHeight-ey) ky=(1-(window.innerHeight-mouseAt.y)/ey);
+    if(kx||ky) lookPx(kx*KEYLOOK_PX*dt, ky*KEYLOOK_PX*.6*dt);
+  }
   const zt=Math.max((zoomHeld||PAD.zoom)?1:0, zoomToggle?ZOOM_STAGES[zoomStage]:0);
   zoomK+=(zt-zoomK)*Math.min(1,dt*11); if(Math.abs(zoomK-zt)<.003) zoomK=zt;
   el.xh.classList.toggle('zoom',zoomK>.5);
@@ -9799,6 +9810,7 @@ function readKeys(){
 }
 /* ── マウス（任意）：ポインタロックで視点。ロックが使えなければドラッグで視点 ── */
 let locked=false, mouseUsed=false, lockFails=0, lockFailed=false;
+const mouseAt={x:-1,y:-1,in:false};
 function canvasEl(){ return renderer?renderer.domElement:null; }
 function lockOk(){ return PCS.mlook==='lock' && !window.TT_NOLOCK && !lockFailed && !!(document.body.requestPointerLock||document.body.mozRequestPointerLock); }
 function lockFail(){ lockFails++; if(lockFails>=3 && !lockFailed){ lockFailed=true; wToast('ポインタロックが使えないため、マウスはドラッグで視点を動かします（矢印キーでも可）'); } }
@@ -9815,7 +9827,7 @@ document.addEventListener('pointerlockchange',()=>{
 });
 document.addEventListener('pointerlockerror',()=>{ locked=false; lockFails=3; lockFail(); });
 window.addEventListener('mousemove',e=>{
-  mouseUsed=true;
+  mouseUsed=true; mouseAt.x=e.clientX; mouseAt.y=e.clientY; mouseAt.in=true;
   if(uiBlocked()) return;
   if(locked) lookPx(e.movementX||0,e.movementY||0);
   else if(PCS.mlook==='hover' && !PTR.has('m')) lookPx(e.movementX||0,e.movementY||0);          // ホバー：動かすだけで視点（トラックパッド向け）
@@ -9840,6 +9852,7 @@ window.addEventListener('mouseup',e=>{
 window.addEventListener('contextmenu',e=>e.preventDefault());
 window.addEventListener('wheel',e=>{ if(uiBlocked()) return; if(Math.abs(e.deltaY)<1) return; cycleW(e.deltaY>0?1:-1); e.preventDefault(); },{passive:false});
 window.addEventListener('blur',()=>releasePointers());
+document.addEventListener('mouseleave',()=>{ mouseAt.in=false; });
 window.addEventListener('pointerdown',function(){ Snd.kick(); },{capture:true});
 window.addEventListener('keydown',function(){ Snd.kick(); },{capture:true});
 /* ── ゲームパッド（任意・Standard 配列）── */
@@ -9924,7 +9937,10 @@ for(const root of [pmenu,wpanel,titleEl,keysEl,resultEl]) root.addEventListener(
 /* ══════════ タイトル ══════════ */
 function onBootDone(){ if(!titleShown){ titleShown=true; showTitle(); } }
 let titleT=0, titleYaw0=0, titleY0=0;
+const ISTYLES=[['kb','キーボードのみ'],['mouse','マウス'],['pad','トラックパッド'],['gp','ゲームパッド']];
+function applyIStyle(s){ PCS.istyle=s; PCS.mlook = s==='pad' ? 'hover' : (s==='mouse' ? 'lock' : PCS.mlook); if(s==='kb') PCS.mlook='drag'; savePCS(); updKeyHint(); }
 function renderTitlePick(){
+  const ti=document.getElementById('tInput'); if(ti){ ti.innerHTML=''; ISTYLES.forEach(([s,n])=>{ ti.appendChild(mkPB(n,PCS.istyle===s,()=>{ applyIStyle(s); renderTitlePick(); knavOpen(titleEl,'tI_'+s); wToast({kb:'矢印キーで視点、Space で発射。マウスは使いません',mouse:'クリックで視点をロック。Esc で解除',pad:'トラックパッドの指の動きがそのまま視点になります（ホバー）。画面端で振り向きが続きます',gp:'Standard 配列。右スティック視点、RT 発射、Start メニュー'}[s]); },'tI_'+s)); }); }
   const tm=document.getElementById('tMaps'); if(!tm) return; tm.innerHTML='';
   MAPNAMES.forEach((n,i)=>{ tm.appendChild(mkPB(n,i===MAPID,()=>{ if(i===MAPID) return; genCity(i); spawnOverview(); showTitle(); knavOpen(titleEl,'tP_'+i); },'tP_'+i)); });
   const td=document.getElementById('tModes'); td.innerHTML='';
