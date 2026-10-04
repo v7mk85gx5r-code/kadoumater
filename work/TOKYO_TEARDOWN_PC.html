@@ -259,7 +259,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
       マウスを使う場合はクリックで視点をロック（Escで解除）。ゲームパッド（Standard配列）にも対応。</div>
     <div id="tBtns">
       <button class="pb hi" id="tStart">▶ START　<kbd>Enter</kbd></button>
-      <button class="pb" id="tKeysBtn">操作方法　<kbd>F1</kbd></button>
+      <button class="pb" id="tKeysBtn">操作方法　<kbd>/</kbd></button>
       <button class="pb" id="tMenuBtn">設定・マップ・モード　<kbd>Esc</kbd></button>
     </div>
     <div id="tSeed">SEED —</div>
@@ -274,10 +274,11 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
       <div class="k"><kbd>X</kbd></div><div class="v">装薬を起爆</div>
       <div class="k"><kbd>V</kbd></div><div class="v">ズーム切替（マウス右ボタン／LT は押している間）</div>
       <div class="k"><kbd>R</kbd><kbd>T</kbd></div><div class="v">視点を水平に戻す／俯瞰ポイントへ移動</div>
-      <div class="k"><kbd>H</kbd><kbd>F2</kbd></div><div class="v">HUD表示切替／性能表示</div>
+      <div class="k"><kbd>H</kbd><kbd>O</kbd></div><div class="v">HUD表示切替／性能表示（F2 でも）</div>
       <div class="k"><kbd>Esc</kbd></div><div class="v">メニュー（設定・マップ・モード）。メニューも矢印キーと Enter で操作</div>
+      <div class="k"><kbd>/</kbd></div><div class="v">操作一覧（MacBook の F1 は輝度キー）</div>
       <div class="h">MOUSE（任意）</div>
-      <div class="k">移動</div><div class="v">視点（クリックでロック）</div>
+      <div class="k">移動</div><div class="v">視点（クリックでロック。トラックパッドは設定で「ホバー」に）</div>
       <div class="k">左／右／ホイール</div><div class="v">発射／ズーム／武器切替</div>
       <div class="h">GAMEPAD（任意）</div>
       <div class="k">L / R スティック</div><div class="v">移動／視点　<b>RT</b> 発射　<b>LT</b> ズーム　<b>LB/RB</b> 武器　<b>A/B</b> 上昇/下降　<b>X</b> 起爆　<b>Y</b> 一覧　<b>Start</b> メニュー</div>
@@ -331,13 +332,14 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
 
 <div id="pmenu" class="ov"><div class="sheet">
   <h3>MENU <span class="hk">矢印キーで移動 ／ Enter で決定 ／ Esc で閉じる</span><button id="pmClose" aria-label="閉じる">✕</button></h3>
-  <div class="row"><button class="pb hi" id="pmResume">▶ 再開</button><button class="pb sub" id="bHint">操作方法 (F1)</button><button class="pb sub" id="bFull">全画面</button></div>
+  <div class="row"><button class="pb hi" id="pmResume">▶ 再開</button><button class="pb sub" id="bHint">操作方法 ( / )</button><button class="pb sub" id="bFull">全画面</button></div>
   <div class="row lbl">画質</div>
   <div class="row"><span class="lb">プリセット</span><div class="row" id="pmQualRow" style="margin:0;flex:1"></div></div>
   <div class="row"><span class="lb">解像度スケール</span><div class="row" id="pmScaleRow" style="margin:0;flex:1"></div></div>
   <div class="row"><span class="lb">効果</span><button class="pb" id="bAO">SSAO</button><button class="pb" id="bFx">演出</button><button class="pb" id="bHud">HUD</button><button class="pb" id="bPerf">性能表示</button></div>
   <div class="row lbl">操作</div>
   <div class="row"><span class="lb">視野角</span><div class="row" id="pmFovRow" style="margin:0;flex:1"></div></div>
+  <div class="row"><span class="lb">マウス視点</span><div class="row" id="pmLookRow" style="margin:0;flex:1"></div></div>
   <div class="row"><span class="lb">視点の速さ</span><button class="pb sm" id="pmSensM">−</button><span id="pmSensV">5</span><button class="pb sm" id="pmSensP">＋</button>
     <button class="pb" id="bInvY">Y軸反転</button><button class="pb" id="bSnd">音</button></div>
   <div class="row lbl">モード</div>
@@ -365,7 +367,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
       <div class="k"><kbd>X</kbd></div><div class="v">置いた装薬を起爆</div>
       <div class="k"><kbd>V</kbd></div><div class="v">ズーム切替</div>
       <div class="k"><kbd>R</kbd> / <kbd>T</kbd></div><div class="v">視点を水平に ／ 俯瞰ポイントを順に移動</div>
-      <div class="k"><kbd>H</kbd> / <kbd>F2</kbd></div><div class="v">HUD表示切替 ／ 性能表示</div>
+      <div class="k"><kbd>H</kbd> / <kbd>O</kbd></div><div class="v">HUD表示切替 ／ 性能表示（MacBook の F1/F2 は輝度キーなので / と O を用意）</div>
       <div class="k"><kbd>Esc</kbd> / <kbd>P</kbd></div><div class="v">メニュー（キーで操作できます）</div>
     </div>
     <div class="kgrid">
@@ -9393,15 +9395,16 @@ function updWeaponUI(){
 function cycleW(dir){ const i=WPN.findIndex(w=>w.id===wpn); selW(WPN[(i+dir+WPN.length)%WPN.length].id,true); }
 function updKeyHint(){
   const W=curW();
-  el.keyhint.innerHTML='<b>'+W.n+'</b>　'+(WHINT[W.id]||'')+'<br><span>WASD 移動　↑↓←→ 視点　E/Q 上下　Shift 加速　Z/C 武器　Tab 一覧　V ズーム　T 俯瞰　Esc メニュー'+(PAD.on?'　🎮 パッド有効':'')+'</span>';
+  el.keyhint.innerHTML='<b>'+W.n+'</b>　'+(WHINT[W.id]||'')+'<br><span>WASD 移動　↑↓←→ 視点　E/Q 上下　Shift 加速　Z/C 武器　Tab 一覧　V ズーム　T 俯瞰　Esc メニュー　/ 操作一覧'+(PAD.on?'　🎮 パッド有効':'')+'</span>';
 }
 /* ══════════ 設定（端末に保存） ══════════ */
-const PCS={q:'auto',scale:1,fov:75,sens:5,invY:false,ao:true,snd:true,fx:1,hud:true};
+const PCS={q:'auto',scale:1,fov:75,sens:5,invY:false,ao:true,snd:true,fx:1,hud:true,mlook:'lock'};   // mlook: lock | hover | drag
 function loadPCS(){ try{ const o=JSON.parse(localStorage.getItem('tt_pc_v1')||'null'); if(o&&typeof o==='object') Object.assign(PCS,o); }catch(e){} }
 function savePCS(){ try{ localStorage.setItem('tt_pc_v1',JSON.stringify(PCS)); }catch(e){} }
 function applyPCS(){
   loadPCS();
   PCS.scale=clampN(+PCS.scale||1,.5,2); PCS.fov=clampN(+PCS.fov||75,55,110); PCS.sens=clampN((+PCS.sens||5)|0,1,10);
+  if(!['lock','hover','drag'].includes(PCS.mlook)) PCS.mlook='lock';
   resScale=PCS.scale; aoUser=!!PCS.ao; fovUser=PCS.fov; S.sound=!!PCS.snd; QUAL.fxK=PCS.fx<1?.5:1;
   PCS.hud=true; el.hud.classList.remove('off');
   if(window.TT_QUALITY) applyLevel(QUAL.level,true); else setQuality(['auto','ultra','high','mid','low'].includes(PCS.q)?PCS.q:'auto');
@@ -9490,7 +9493,7 @@ function releasePointers(){
   hideCutLine(); el.xh.classList.remove('cut');
 }
 /* ── キーボード ── */
-const GAME_KEYS=new Set(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter','F1','F2','KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','KeyZ','KeyC','KeyX','KeyV','KeyR','KeyT','KeyH','KeyP','KeyI','KeyJ','KeyK','KeyL','ShiftLeft','ShiftRight','Escape']);
+const GAME_KEYS=new Set(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter','F1','F2','Slash','KeyO','KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','KeyZ','KeyC','KeyX','KeyV','KeyR','KeyT','KeyH','KeyP','KeyI','KeyJ','KeyK','KeyL','ShiftLeft','ShiftRight','Escape']);
 const keyLook={x:0,y:0};
 window.addEventListener('keydown',e=>{
   const code=e.code;
@@ -9499,9 +9502,9 @@ window.addEventListener('keydown',e=>{
   keys[code]=1;
   const ov=topOverlay();
   if(ov){
-    if(code==='Escape'||(code==='KeyP'&&ov!==keysEl)||(code==='F1'&&ov===keysEl)){ if(!rep) closeTop(); e.preventDefault(); return; }
+    if(code==='Escape'||(code==='KeyP'&&ov!==keysEl)||((code==='F1'||code==='Slash')&&ov===keysEl)){ if(!rep) closeTop(); e.preventDefault(); return; }
     if(ov===titleEl && (code==='Enter'||code==='Space') && !rep && (!KNAV.lastId||KNAV.lastId==='tStart')){ startGame(); e.preventDefault(); return; }
-    if(ov===titleEl && code==='F1' && !rep){ openKeys(); e.preventDefault(); return; }
+    if(ov===titleEl && (code==='F1'||code==='Slash') && !rep){ openKeys(); e.preventDefault(); return; }
     if(code==='Tab'){ if(ov===wpanel) closePanel(); e.preventDefault(); return; }
     if(code==='ArrowUp'||code==='KeyW'||code==='KeyI'){ knavMove(0,-1); e.preventDefault(); return; }
     if(code==='ArrowDown'||code==='KeyS'||code==='KeyK'){ knavMove(0,1); e.preventDefault(); return; }
@@ -9526,8 +9529,8 @@ window.addEventListener('keydown',e=>{
     case 'KeyR': cam.pitch=0; break;
     case 'KeyT': cycleView(); break;
     case 'KeyH': toggleHud(); break;
-    case 'F1': openKeys(); break;
-    case 'F2': togglePerf(); break;
+    case 'F1': case 'Slash': openKeys(); break;
+    case 'F2': case 'KeyO': togglePerf(); break;
     default: { const wi=KEYCODE_W[code]; if(wi!==undefined&&WPN[wi]) selW(WPN[wi].id,true); }
   }
 });
@@ -9558,7 +9561,7 @@ function readKeys(){
 /* ── マウス（任意）：ポインタロックで視点。ロックが使えなければドラッグで視点 ── */
 let locked=false, mouseUsed=false, lockFails=0, lockFailed=false;
 function canvasEl(){ return renderer?renderer.domElement:null; }
-function lockOk(){ return !window.TT_NOLOCK && !lockFailed && !!(document.body.requestPointerLock||document.body.mozRequestPointerLock); }
+function lockOk(){ return PCS.mlook==='lock' && !window.TT_NOLOCK && !lockFailed && !!(document.body.requestPointerLock||document.body.mozRequestPointerLock); }
 function lockFail(){ lockFails++; if(lockFails>=3 && !lockFailed){ lockFailed=true; wToast('ポインタロックが使えないため、マウスはドラッグで視点を動かします（矢印キーでも可）'); } }
 function requestLock(){
   if(!lockOk()||locked) return;
@@ -9576,6 +9579,7 @@ window.addEventListener('mousemove',e=>{
   mouseUsed=true;
   if(uiBlocked()) return;
   if(locked) lookPx(e.movementX||0,e.movementY||0);
+  else if(PCS.mlook==='hover' && !PTR.has('m')) lookPx(e.movementX||0,e.movementY||0);          // ホバー：動かすだけで視点（トラックパッド向け）
   else { const p=PTR.get('m'); if(p){ lookPx(e.clientX-p.x,e.clientY-p.y); p.x=e.clientX; p.y=e.clientY; } }
 });
 window.addEventListener('mousedown',e=>{
@@ -9737,6 +9741,8 @@ function renderMenu(){
   [.5,.75,1,1.25,1.5,2].forEach(v=>{ sc.appendChild(mkPB(Math.round(v*100)+'%',Math.abs(PCS.scale-v)<.01,()=>{ PCS.scale=v; savePCS(); resScale=v; applyLevel(QUAL.level,true); renderMenu(); },'pmS_'+Math.round(v*100))); });
   const fv=document.getElementById('pmFovRow'); fv.innerHTML='';
   [60,70,75,80,90,100].forEach(v=>{ fv.appendChild(mkPB(v+'°',PCS.fov===v,()=>{ PCS.fov=v; savePCS(); fovUser=v; renderMenu(); },'pmF_'+v)); });
+  const lk=document.getElementById('pmLookRow'); lk.innerHTML='';
+  [['lock','ロック（クリックで取得）'],['hover','ホバー（動かすだけ・トラックパッド向け）'],['drag','ドラッグ']].forEach(([m,n])=>{ lk.appendChild(mkPB(n,PCS.mlook===m,()=>{ PCS.mlook=m; savePCS(); if(m!=='lock'&&locked){ try{ document.exitPointerLock(); }catch(e){} } renderMenu(); },'pmL_'+m)); });
   document.getElementById('pmSensV').textContent=PCS.sens;
   setTog('bInvY','Y軸反転',PCS.invY); setTog('bSnd',PCS.snd?'🔊 音':'🔇 音 OFF',PCS.snd);
   setTog('bAO','SSAO '+(PCS.ao?'ON':'OFF'),PCS.ao); setTog('bFx','演出 '+(PCS.fx<1?'控えめ':'標準'),PCS.fx>=1);

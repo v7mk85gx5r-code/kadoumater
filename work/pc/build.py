@@ -1,6 +1,6 @@
 # TOKYO TEARDOWN PC 版ビルド：Enhanced 版（three.js 同梱）を元に、PC向けの UI/操作系・画質・上限値・新武器を差し込む
 import re, sys, os, shutil
-ROOT='/home/user/kadoumater'
+ROOT=os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # リポジトリ直下（worktree でも動くように）
 SRC=ROOT+'/work/TOKYO_TEARDOWN_iPhone17_Enhanced.html'
 OUT=ROOT+'/work/TOKYO_TEARDOWN_PC.html'
 D=ROOT+'/work/pc/'
@@ -274,16 +274,15 @@ import importlib.util, glob
 class _Src:
     def __init__(self): self.d={'ui':rd(D+'ui_pc.js'),'css':rd(D+'style_pc.css'),'body':rd(D+'body_pc.html')}
     def rep(self,key,old,new,count=1):
+        # ソース（ui/css/body）と生成物の両方に同じ完全一致置換を当てる
         c=self.d[key].count(old)
         if c!=count: raise SystemExit('SRC PATTERN COUNT MISMATCH %s (%d != %d): %s'%(key,c,count,old[:160]))
         self.d[key]=self.d[key].replace(old,new)
+        rep(old,new,count)
 FEATS=sorted(glob.glob(D+'feat/*.py'))
 if FEATS:
     # ソース（ui/css/body）はすでに差し込み済みなので、ソースへの置換は生成物にも同じ置換として当てる
     src=_Src()
-    def src_rep(key,old,new,count=1):
-        src.rep(key,old,new,count); rep(old,new,count)
-    src.rep_both=src_rep
     for f in FEATS:
         spec=importlib.util.spec_from_file_location('feat_'+os.path.basename(f)[:-3], f)
         m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
