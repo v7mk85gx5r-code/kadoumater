@@ -42,6 +42,7 @@ function feedPush(html,cls,ms){
 }
 function bldName(b){ const lm=(b.lm!==undefined&&LMS[b.lm])?LMS[b.lm]:null; return lm?lm.name:(STYLE_NAME[b.style]||'建物'); }
 const FEED_SKIP={pole:1,car:1,tree:1,trafo:1,water:1,tank:1,gate:1};
+let feedRankLast='';
 /* 同時に多数が倒れた時は「N棟 倒壊」にまとめる（核・破壊球・連鎖で流れが埋まらないように） */
 const FEEDB={n:0,t:0,cls:''};
 function feedBld(html,cls,isLm){
@@ -69,7 +70,7 @@ let causeT=0, causeLast='';""")
   const now=performance.now();""")
     U("""function showCombo(){
   elChain.animate([""","""function showCombo(){
-  { let col='#ffd166', nm='GOOD'; for(const r of CHAINRANK) if(S.combo>=r[0]){ col=r[1]; nm=r[2]; } if(S.combo>=4) feedPush('<b style="color:'+col+'">×'+S.combo+'</b> <span class="s">'+nm+'</span>','chain',3500); }
+  { let col='#ffd166', nm='GOOD'; for(const r of CHAINRANK) if(S.combo>=r[0]){ col=r[1]; nm=r[2]; } if(S.combo>=4 && nm!==feedRankLast){ feedRankLast=nm; feedPush('<b style="color:'+col+'">×'+S.combo+'</b> <span class="s">'+nm+'</span>','chain',3500); } }
   elChain.animate([""")
     # ── ターゲットカード：損傷ゲージ ──
     U("""  const dmg=b.init?Math.round((1-b.live/b.init)*100):0;
