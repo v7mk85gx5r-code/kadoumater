@@ -717,10 +717,12 @@ void main(){ vDir=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(po
 /* ══════════ 動的ライティング ══════════
    建物は照明計算のない材質で描かれていたため、爆発も火災も周りを照らさなかった。
    共有材質に照明を注入し、路面の光・空の環境光・動的な点光源を足す */
-const NLIT=16;
+const NLIT=32;
 const LITU={
   uLP:{value:Array.from({length:NLIT},()=>new THREE.Vector4(0,-1e4,0,1))},
   uLC:{value:Array.from({length:NLIT},()=>new THREE.Vector4(0,0,0,0))},
+  uLD:{value:Array.from({length:NLIT},()=>new THREE.Vector4(0,0,0,-2))},   // スポット光の向き xyz と円錐の cos（w<=-1 で全方向光）
+  uNL:{value:0},                                                             // 実際に使っている灯数（シェーダはここで打ち切る）
   uCam:{value:new THREE.Vector3()},
   uStreet:{value:0.40}, uStreetFall:{value:1/19},
   uStreetCol:{value:new THREE.Color(1.0,0.60,0.33)},
@@ -740,7 +742,7 @@ const LITU={
   uHot:{value:Array.from({length:8},()=>new THREE.Vector4(0,-1e4,0,1))}, uHotK:{value:[0,0,0,0,0,0,0,0]},   // 赤熱
 };
 const LIT_PRE=`#define NLIT ${NLIT}
-uniform vec4 uLP[NLIT]; uniform vec4 uLC[NLIT];
+uniform vec4 uLP[NLIT]; uniform vec4 uLC[NLIT]; uniform vec4 uLD[NLIT]; uniform float uNL;
 uniform vec3 uCam, uStreetCol, uSkyCol, uTop, uMid, uHor, uHaze;
 uniform float uStreet, uStreetFall, uSkyAmb, uEmLo, uEmHi;
 varying vec3 vWPos; varying vec3 vLPos; varying float vM;
@@ -1092,8 +1094,11 @@ const LIT_MAIN=`
   } else if(ttCls>0.5&&ttCls<3.5){
     outgoingLight*=(ttCls>1.5?uEmHi:uEmLo);                 // ネオンは強く、街灯は控えめに
     if(ttCls>1.5&&ttCls<2.5&&abs(vWPos.y)>50.0&&abs(ttC0.g-0.30)<0.04&&abs(ttC0.b-0.26)<0.04){
-      float fl=fract(uTime*0.75);                                // 航空障害灯：街じゅうで同期して点滅する
-      outgoingLight*=0.06+1.9*smoothstep(0.0,0.06,fl)*smoothstep(0.50,0.36,fl);
+      vec2 bq=floor(vWPos.xz/44.0); float ph=ttH2(bq);           // 航空障害灯：44m 格子≒ビル単位で位相をずらす
+      float fl=fract(uTime*0.75+ph);
+      if(abs(vWPos.y)>150.0){ float s=fract(uTime*1.3+ph);      // 150m 超は白色のキセノン閃光（約 1.3Hz の鋭いフラッシュ）
+        outgoingLight=vec3(1.0,0.97,0.9)*(0.08+5.5*smoothstep(0.0,0.015,s)*smoothstep(0.07,0.025,s))*uEmHi; }
+      else outgoingLight*=0.06+1.9*smoothstep(0.0,0.06,fl)*smoothstep(0.50,0.36,fl);
     }
 #ifdef USE_UV
     if(ttCls>1.5&&ttVert>0.5) outgoingLight=ttBoard(ttC0,vUv,vWPos,ttN,ttPx,uEmHi);
@@ -1130,11 +1135,15 @@ const LIT_MAIN=`
     vec4 lm=texture2D(uLM,(vWPos.xz-uLMo.xy)*uLMo.z);
     ttL+=lm.rgb*(uLMGain*uSignPow*exp(-abs(ttHt-lm.a*100.0)/22.0))*(0.35+0.65*ttVert);
     for(int i=0;i<NLIT;i++){
+      if(float(i)>=uNL) break;                                           // 使っている灯数で打ち切る
       vec3 dv=uLP[i].xyz-vWPos;
       float dd=length(dv);
       float at=clamp(1.0-dd/uLP[i].w,0.0,1.0);
-      float nl=max(dot(ttN,dv/max(dd,0.001)),0.0)*0.8+0.2;
-      ttL+=uLC[i].rgb*(uLC[i].a*at*at*nl);
+      if(at<=0.0) continue;
+      vec3 ld=dv/max(dd,0.001);
+      float cone=uLD[i].w<=-1.0?1.0:smoothstep(uLD[i].w,uLD[i].w+0.12,dot(-ld,uLD[i].xyz));   // スポット光の円錐（縁は柔らかく）
+      float nl=max(dot(ttN,ld),0.0)*0.8+0.2;
+      ttL+=uLC[i].rgb*(uLC[i].a*at*at*nl*cone);
     }
     // 赤熱：当たった所が高温で光り、冷えるにつれて黄→橙→赤になる
     vec3 ttHeat=vec3(0.0);
@@ -1458,7 +1467,7 @@ function updHot(dt){
 let LITQ=[], cityPower=1, cityPowerT=1, litT=0;
 const _litCand=[], _fireLs=[];
 /* 一時的な光を足す。近くに同じ光があれば統合し、動く光源（噴射炎）を1灯として扱う */
-function addLight(x,y,z,r,col,inten,tau){
+function addLight(x,y,z,r,col,inten,tau,dir,cone){
   for(let i=0;i<LITQ.length;i++){
     const L=LITQ[i];
     if(Math.abs(L.x-x)+Math.abs(L.y-y)+Math.abs(L.z-z) < Math.min(L.r,r)*0.3){
@@ -1473,7 +1482,7 @@ function addLight(x,y,z,r,col,inten,tau){
     if(inten*r<=wv) return;
     LITQ.splice(wi,1);
   }
-  LITQ.push({x:x,y:y,z:z,r:r,c:col,i:inten,tau:tau,s:0});
+  LITQ.push({x:x,y:y,z:z,r:r,c:col,i:inten,tau:tau,s:0,d:dir||null,cone:cone===undefined?-2:cone});
 }
 function updLights(dt){
   litT+=dt;
@@ -1510,12 +1519,16 @@ function updLights(dt){
   updLampLights(dt);
   for(let i=0;i<SLPL.ls.length;i++){ const L=SLPL.ls[i]; L.s=0.6*L.i*L.r/(Math.hypot(L.x-cx,L.y-cy,L.z-cz)+L.r*0.5+1); cand.push(L); }
   cand.sort((a,b)=>b.s-a.s);
-  const P=LITU.uLP.value, C=LITU.uLC.value;
+  const P=LITU.uLP.value, C=LITU.uLC.value, D=LITU.uLD.value;
+  const nMax=Math.min(NLIT, LIT_LV[Math.max(0,Math.min(LIT_LV.length-1,QUAL.level|0))]);   // 画質段階ごとの灯数の上限
+  let nUsed=0;
   for(let i=0;i<NLIT;i++){
-    const L=cand[i];
-    if(L){ P[i].set(L.x,L.y,L.z,L.r); C[i].set(L.c[0],L.c[1],L.c[2],L.i); }
-    else { P[i].set(0,-1e4,0,1); C[i].set(0,0,0,0); }
+    const L=i<nMax?cand[i]:null;
+    if(L&&L.i>0.0){ P[i].set(L.x,L.y,L.z,L.r); C[i].set(L.c[0],L.c[1],L.c[2],L.i);
+      if(L.d) D[i].set(L.d[0],L.d[1],L.d[2],L.cone); else D[i].w=-2; nUsed=i+1; }
+    else { P[i].set(0,-1e4,0,1); C[i].set(0,0,0,0); D[i].w=-2; }
   }
+  LITU.uNL.value=nUsed;
   LITU.uCam.value.copy(camera.position);
 }
 
@@ -1617,6 +1630,7 @@ function updTraffic(dt){
       if(q.p[1]<14&&Math.abs(q.p[0]-cx)<6&&Math.abs(q.p[2]-cz)<6){ wreckCar(c, q.src==='nuke'?'nuke':'domino'); break; } } } }
   for(let i=C.length-1;i>=0;i--) if(C[i].dead) C.splice(i,1);
   // 描画
+  hlBegin();
   const MB=TRF.body.instanceMatrix.array, MC=TRF.cabin.instanceMatrix.array, ML=TRF.lamp.instanceMatrix.array;
   const CB=TRF.body.instanceColor.array, CC=TRF.cabin.instanceColor.array, CL=TRF.lamp.instanceColor.array;
   const put=(M,o,cs,sn,x,y,z)=>{ M[o]=cs;M[o+1]=0;M[o+2]=-sn;M[o+3]=0; M[o+4]=0;M[o+5]=1;M[o+6]=0;M[o+7]=0;
@@ -1630,6 +1644,7 @@ function updTraffic(dt){
     CB[i*3]=c.col[0]; CB[i*3+1]=c.col[1]; CB[i*3+2]=c.col[2];
     CC[i*3]=8.08; CC[i*3+1]=8.10; CC[i*3+2]=8.13;                  // ガラスの印（種類4）
     const brake=c.v<c.vmax*.6, prk=!!c.parked;
+    if(!prk) hlNote(c,x,z,cs,sn,brake);
     const lp=[[2.22,.62,.62,1],[2.22,.62,-.62,1],[-2.22,.66,.62,0],[-2.22,.66,-.62,0]];
     for(let k=0;k<4;k++){ const q=lp[k], lx=q[0]*cs+q[2]*sn, lz=-q[0]*sn+q[2]*cs, o=(i*4+k);
       put(ML,o*16,cs,sn,x+lx,q[1],z+lz);
@@ -1679,6 +1694,11 @@ function buildPeds(){
   for(let j=0;j<ZL.length;j++) for(const sd of [-1,1]){
     const c=ZL[j]+sd*(ZW[j]/2-1.5), n=((x1-x0)*dens)|0;
     for(let k=0;k<n;k++){ const t=rf(x0,x1); put(t,c+rf(-.5,.5),{m:0,ax:0,c:c,t:t,dir:Math.random()<.5?-1:1,v:rf(1.05,1.55),a:x0,b:x1}); }
+  }
+  if(MAPID===0){                                            // セントラルロード：アーチから花道通りまで人の川
+    const a=ZL[3]+ZW[3]/2+2, b=ZL[5]-ZW[5]/2-2, n=(220*QUAL.pedK)|0;
+    for(let k=0;k<n;k++){ const x=XL[2]+rf(-XW[2]/2+1.5,XW[2]/2-1.5), t=rf(a,b);
+      put(x,t,{m:0,ax:2,c:x,t:t,dir:Math.random()<.5?-1:1,v:rf(0.9,1.4),a:a,b:b}); }
   }
   if(MAPID===1&&CGAI){                                      // センター街は人通りが多い
     for(let k=0;k<90;k++){ const x=rf(CGAI.x0+1,CGAI.x1-1), t=rf(CGAI.z0+3,CGAI.z1-2);
@@ -1754,7 +1774,7 @@ function buildLanterns(){
   const push=(x,z,sx,sz,red)=>{ if(LAN.list.length<398){ LAN.list.push({x:x,z:z,sx:sx,sz:sz,red:red}); } };
   for(let i=0;i<XL.length;i++) if(XW[i]<=16) for(const sd of [-1,1]){
     const c=XL[i]+sd*(XW[i]/2-0.6);
-    for(let z=CITY.z0+10;z<CITY.z1-10;z+=rf(7,13)){
+    for(let z=CITY.z0+10;z<CITY.z1-10;z+=((MAPID===0&&i===2)?rf(4,7):rf(7,13))){   // セントラルロードは密に
       if(Math.random()>.55||!bldAt(c+sd*1.9,3,z)) continue;
       const red=Math.random()<.8; push(c,z,sd,0,red); push(c,z+.95,sd,0,red); }
   }
@@ -2044,7 +2064,7 @@ function renderReflection(dt){
   const P=LITU.uLP.value;
   const flip=(s)=>{
     // 点光源・赤熱・看板も上下反転する（地面の下に写る世界を、正しい側から照らすため）
-    for(let i=0;i<NLIT;i++) P[i].y=-P[i].y;
+    for(let i=0;i<NLIT;i++){ P[i].y=-P[i].y; LITU.uLD.value[i].y=-LITU.uLD.value[i].y; }
     for(const h of LITU.uHot.value) h.y=-h.y;
     for(let i=0;i<SIGNS.length;i++){ const u=LITU.uSgO.value[i]; u.y = s<0 ? -(u.y+LITU.uSgR.value[i].z) : -u.y-LITU.uSgR.value[i].z; }
     scene.scale.y=s; LITU.uFlip.value=s;
@@ -2104,7 +2124,7 @@ void main(){
   gl_FragColor=vec4(c,a);
 }`;
 const SMOKE_FRAG=`#define NLIT ${NLIT}
-uniform vec4 uLP[NLIT]; uniform vec4 uLC[NLIT];
+uniform vec4 uLP[NLIT]; uniform vec4 uLC[NLIT]; uniform vec4 uLD[NLIT]; uniform float uNL;
 uniform vec3 uStreetCol, uFogC, uCamP; uniform float uStreet, uStreetFall, uFogN, uFogF;
 uniform sampler2D uLM; uniform vec4 uLMo; uniform float uLMGain, uSignPow;
 varying float vN; varying vec3 vNrm; varying vec3 vView; varying vec4 vS; varying vec3 vWp;
@@ -2115,7 +2135,8 @@ void main(){
   vec3 L=vec3(0.62,0.55,0.52)+uStreetCol*(uStreet*1.5*exp(-abs(vWp.y)*uStreetFall));   // 夜空の薄明かりと路面の光
   vec4 lm=texture2D(uLM,(vWp.xz-uLMo.xy)*uLMo.z);
   L+=lm.rgb*(uLMGain*uSignPow*1.6*exp(-abs(abs(vWp.y)-lm.a*100.0)/24.0));            // 看板の色に染まる
-  for(int i=0;i<NLIT;i++){ vec3 dv=uLP[i].xyz-vWp; float d=length(dv); float at=clamp(1.0-d/uLP[i].w,0.0,1.0); L+=uLC[i].rgb*(uLC[i].a*at*at*1.3); }
+  for(int i=0;i<NLIT;i++){ if(float(i)>=uNL) break; vec3 dv=uLP[i].xyz-vWp; float d=length(dv); float at=clamp(1.0-d/uLP[i].w,0.0,1.0); if(at<=0.0) continue;
+    float cone=uLD[i].w<=-1.0?1.0:smoothstep(uLD[i].w,uLD[i].w+0.12,dot(-dv/max(d,0.001),uLD[i].xyz)); L+=uLC[i].rgb*(uLC[i].a*at*at*1.3*cone); }
   vec3 col=base*L;
   if(!dust) col+=vec3(1.0,0.34,0.06)*(vS.z*(1.0-vS.x)*(1.0-vS.x)*smoothstep(0.35,0.95,vN)*2.2);   // 内側の炎に照らされる
   float fg=clamp((length(vWp-uCamP)-uFogN)/(uFogF-uFogN),0.0,1.0);
@@ -2151,7 +2172,7 @@ function initVFX(){
     uniforms:{uTime:SKYU.uTime,uAmp:{value:0.22}},transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
   VFX.fire=new THREE.InstancedMesh(mkS(VFX_FMAX),mF,VFX_FMAX);
   const mS=new THREE.ShaderMaterial({vertexShader:VFX_VERT,fragmentShader:SMOKE_FRAG,
-    uniforms:{uTime:SKYU.uTime,uAmp:{value:0.34},uLP:LITU.uLP,uLC:LITU.uLC,uStreet:LITU.uStreet,
+    uniforms:{uTime:SKYU.uTime,uAmp:{value:0.34},uLP:LITU.uLP,uLC:LITU.uLC,uLD:LITU.uLD,uNL:LITU.uNL,uStreet:LITU.uStreet,
       uStreetFall:LITU.uStreetFall,uStreetCol:LITU.uStreetCol,uFogC:{value:new THREE.Color(FOGC)},
       uFogN:{value:FOG_NEAR},uFogF:{value:FOG_FAR},uCamP:LITU.uCam,
       uLM:LITU.uLM,uLMo:LITU.uLMo,uLMGain:LITU.uLMGain,uSignPow:LITU.uSignPow},transparent:true,depthWrite:false});
@@ -3204,39 +3225,49 @@ function mkBuilding(fx,fz,fw,fd,H,style,seed,opt){
     }
   }
   /* ── ④ 巨大縦看板：地上から屋上まで一気に届く電照看板。
-        歌舞伎町の写真で最も目立つ要素 ── */
-  if((style==='zakkyo'||style==='shop') && H>12 && R()<dense*0.55){
-    const f=faces[(R()*faces.length)|0];
-    const nm=(R()<.6)?mainNeon:NEON[(R()*NEON.length)|0];
-    const y0=g1, y1=H-1;
-    const wdt=RI(2,3);                  // 看板の幅
-    const d=RI(3,5);                    // 街路へのせり出し
-    // 支持する鉄骨
-    if(f===0||f===1){
-      const zc=fZ0+((fd/2)|0);
-      const bx=(f===0)?fX0-1:fX1+1;
-      for(let y=y0;y<=y1;y+=4)
-        for(let k=1;k<=d;k++) set((f===0)?bx-k+1:bx+k-1, y, zc, 5);
-      // 看板本体
-      if(f===0) fill(fX0-d,y0,zc-wdt, fX0-1,y1,zc+wdt, nm);
-      else      fill(fX1+1,y0,zc-wdt, fX1+d,y1,zc+wdt, nm);
-      // 縁の電飾
-      for(let y=y0;y<=y1;y+=3){
-        if(f===0){ set(fX0-d,y,zc-wdt,16); set(fX0-d,y,zc+wdt,16); }
-        else     { set(fX1+d,y,zc-wdt,16); set(fX1+d,y,zc+wdt,16); }
-      }
-    } else {
-      const xc=fX0+((fw/2)|0);
-      for(let y=y0;y<=y1;y+=4)
-        for(let k=1;k<=d;k++) set(xc, y, (f===2)?fZ0-k+1:fZ1+k-1, 5);
-      if(f===2) fill(xc-wdt,y0,fZ0-d, xc+wdt,y1,fZ0-1, nm);
-      else      fill(xc-wdt,y0,fZ1+1, xc+wdt,y1,fZ1+d, nm);
-      for(let y=y0;y<=y1;y+=3){
-        if(f===2){ set(xc-wdt,y,fZ0-d,16); set(xc+wdt,y,fZ0-d,16); }
-        else     { set(xc-wdt,y,fZ1+d,16); set(xc+wdt,y,fZ1+d,16); }
+        歌舞伎町の写真で最も目立つ要素 ──
+        opt.signs（2〜4）を渡された建物は、通り側の面（opt.signFace）の同じ柱に高さ帯を分けた袖看板を色違いで積み上げる
+        （一番街・さくら通りの密度）。面が広ければもう 1 列、帯を半分ずらして並べる。signs 未指定なら従来どおり 1 枚 */
+  { const nS=Math.max(1,Math.min(4,((opt&&opt.signs)|0)||1));
+  if((style==='zakkyo'||style==='shop') && H>12 && (nS>1 || R()<dense*0.55)){
+    const f=(nS>1&&opt.signFace!=null&&faces.indexOf(opt.signFace)>=0)?opt.signFace:faces[(R()*faces.length)|0];
+    const xf=(f===0||f===1), span=xf?fd:fw, c0=((span/2)|0);
+    const cols=[[c0,nS,0]];                                      // 列：[面に沿った中心, 枚数, 帯のずらし]
+    if(nS>1&&span>=16) cols.push([(span>=17&&R()<.5)?c0+6:c0-6, RI(1,nS-1), 1]);
+    const band=(nS===1)?(H-1-g1):Math.max(3,((H-1-g1)/nS)|0);  // 1 帯の高さ（マス）
+    for(let ci=0;ci<cols.length;ci++){
+      const cc=cols[ci][0], n=cols[ci][1];
+      for(let s=0;s<n;s++){
+        const nm=(s===0&&R()<.6)?mainNeon:NEON[(R()*NEON.length)|0];
+        let y0=g1, y1=H-1;
+        if(nS>1){ const b0=(s+cols[ci][2])%nS; y0=g1+b0*band; y1=Math.min(H-1,y0+band-1-(band>=5?1:0)); if(y1<y0+1) continue; }
+        const wdt=(ci===0)?RI(2,3):2;        // 看板の幅
+        const d=(nS===1)?RI(3,5):RI(3,4);    // 街路へのせり出し（余白 MG=4 マス内）
+        if(xf){
+          const zc=fZ0+cc, bx=(f===0)?fX0-1:fX1+1;
+          // 支持する鉄骨（1 列目だけ）
+          if(ci===0) for(let y=y0;y<=y1;y+=4) for(let k=1;k<=d;k++) set((f===0)?bx-k+1:bx+k-1, y, zc, 5);
+          // 看板本体
+          if(f===0) fill(fX0-d,y0,zc-wdt, fX0-1,y1,zc+wdt, nm);
+          else      fill(fX1+1,y0,zc-wdt, fX1+d,y1,zc+wdt, nm);
+          // 縁の電飾
+          for(let y=y0;y<=y1;y+=3){
+            if(f===0){ set(fX0-d,y,zc-wdt,16); set(fX0-d,y,zc+wdt,16); }
+            else     { set(fX1+d,y,zc-wdt,16); set(fX1+d,y,zc+wdt,16); }
+          }
+        } else {
+          const xc=fX0+cc;
+          if(ci===0) for(let y=y0;y<=y1;y+=4) for(let k=1;k<=d;k++) set(xc, y, (f===2)?fZ0-k+1:fZ1+k-1, 5);
+          if(f===2) fill(xc-wdt,y0,fZ0-d, xc+wdt,y1,fZ0-1, nm);
+          else      fill(xc-wdt,y0,fZ1+1, xc+wdt,y1,fZ1+d, nm);
+          for(let y=y0;y<=y1;y+=3){
+            if(f===2){ set(xc-wdt,y,fZ0-d,16); set(xc+wdt,y,fZ0-d,16); }
+            else     { set(xc-wdt,y,fZ1+d,16); set(xc+wdt,y,fZ1+d,16); }
+          }
+        }
       }
     }
-  }
+  } }
   /* ── 縦看板 ── */
   if(H>17&&R()<.55){
     const nm=NEON[(R()*NEON.length)|0];
@@ -3949,11 +3980,349 @@ function fillLot(x0,z0,x1,z1){
     else if(r<.76){ H=RI2(11,19); style='zakkyo'; dense=.95; }   // 4〜6階
     else if(r<.92){ H=RI2(13,22); style='apart';  dense=.42; }   // 4〜7階
     else { H=RI2(19,29); style='office'; dense=.60; }            // 6〜9階
+    const bo={faces:faces,dense:dense};
+    if(MAPID===0){ const sf=kbSignFace(x0,z0,x1,z1,faces); if(sf>=0){ bo.signs=RI2(2,4); bo.signFace=sf; } }
     mkBuilding(x0+a*pw+1.2, z0+b*pd+1.2, fw, fd, H, style,
-               ((x0+a*pw)*7+(z0+b*pd)*13)|0, {faces:faces,dense:dense});
+               ((x0+a*pw)*7+(z0+b*pd)*13)|0, bo);
   }
 }
 let cityGen=0;                     // 街の世代。再生成をまたいだ遅延処理を無効にする
+/* ══════════ 歩道設備 STF（work/pc/feat/21_street_furniture.py） ══════════
+   歩道の縁に必ずあるもの：白いガードレール（幹線）・ステンレスの車止め（細い通り）・ゴミ箱・案内標識・バス停・植栽・駐輪自転車。
+   種類ごとに 1 つの InstancedMesh（計 7 ドローコール）。行列と色は dirty の時だけ詰め直す。
+   爆風で飛び（破片に変わる）、落ちてくる塊で倒れ、核では破片を出さずに消える */
+const STF={kinds:{}, list:[], dirty:false, chk:0, fall:[], cells:new Map(), mat:null, hits:0};
+const STF_MAX={rail:5000, bollard:1000, bin:360, sign:360, bus:80, planter:600, bike:1100};
+const STF_SCORE={rail:40, bollard:30, bin:30, sign:60, bus:120, planter:40, bike:30};
+const STF_TALL={rail:1, bollard:1, sign:1, bus:1};                      // 根元から倒れる種類（残りは飛び散る）
+const STF_BIKE_COLS=[[.74,.75,.78],[.12,.14,.22],[.52,.10,.10],[.16,.18,.20],[.62,.58,.46],[.28,.38,.58],[.80,.80,.82]];
+function stfCellKey(x,z){ return (((x/16)|0)+64)*256+(((z/16)|0)+64); }
+function initStf(){
+  if(STF.mat) return;
+  // 箱を合成して 1 つのジオメトリに。局所座標：+x＝通りに沿う向き、+z＝車道の中心へ向く向き、原点＝地面。色は頂点色×インスタンス色
+  // 発光する部品は頂点色の最小成分を 2〜4 にする（LIT_COLOR の区分 1＝控えめな発光）。その種類のインスタンス色は 1 に固定する
+  const merge=(boxes)=>{
+    const gs=boxes.map(b=>{ const g=new THREE.BoxGeometry(b[0],b[1],b[2]).toNonIndexed(); g.translate(b[3],b[4],b[5]);
+      const n=g.attributes.position.count, c=new Float32Array(n*3);
+      for(let i=0;i<n;i++){ c[i*3]=b[6]; c[i*3+1]=b[7]; c[i*3+2]=b[8]; }
+      g.setAttribute('color',new THREE.BufferAttribute(c,3)); return g; });
+    let n=0; for(const g of gs) n+=g.attributes.position.count;
+    const P=new Float32Array(n*3), C=new Float32Array(n*3), V=new Float32Array(n*2); let o=0;
+    for(const g of gs){ P.set(g.attributes.position.array,o*3); C.set(g.attributes.color.array,o*3); V.set(g.attributes.uv.array,o*2); o+=g.attributes.position.count; g.dispose(); }
+    const m=new THREE.BufferGeometry();
+    m.setAttribute('position',new THREE.BufferAttribute(P,3)); m.setAttribute('color',new THREE.BufferAttribute(C,3)); m.setAttribute('uv',new THREE.BufferAttribute(V,2));
+    return m;
+  };
+  STF.mat=new THREE.MeshBasicMaterial({vertexColors:true,fog:true}); setupLitMaterial(STF.mat);
+  const W=[.84,.85,.86], ST=[.56,.57,.60], DK=[.17,.18,.19];
+  const G={
+    // ガードレール：支柱 2 本＋横桟 3 本（白）。3m ピッチで連続する
+    rail:[[.10,.86,.10,-1.42,.43,0,...ST],[.10,.86,.10,1.42,.43,0,...ST],
+          [2.96,.11,.10,0,.80,0,...W],[2.96,.07,.08,0,.56,0,...W],[2.96,.07,.08,0,.32,0,...W]],
+    // 車止め：ステンレスの角柱＋頭の黄色い反射帯（控えめな発光）
+    bollard:[[.16,.88,.16,0,.44,0,...ST],[.19,.05,.19,0,.80,0,2.85,2.70,2.25]],
+    // ゴミ箱：濃い緑の箱＋蓋＋投入口の表示
+    bin:[[.52,.84,.52,0,.42,0,.22,.27,.24],[.58,.10,.58,0,.89,0,.30,.31,.32],[.30,.26,.03,0,.60,.27,.60,.58,.50]],
+    // 案内標識：細い柱＋青い反射板（通りに沿って車の方を向く）
+    sign:[[.08,3.2,.08,0,1.6,0,...ST],[.03,.62,.62,-.02,2.65,0,.32,.33,.35],[.03,.62,.62,.02,2.65,0,2.30,2.42,2.74]],
+    // バス停：柱＋行灯（灯っている）＋ベンチ（歩道の奥側）
+    bus:[[.10,3.0,.10,-1.0,1.5,0,...ST],[.06,.82,.50,-1.0,2.62,0,2.92,2.88,2.74],[.14,.08,.56,-1.0,2.18,0,...DK],
+         [1.6,.07,.42,.3,.46,-.7,.42,.33,.23],[.06,.46,.36,-.4,.23,-.7,...DK],[.06,.46,.36,1.0,.23,-.7,...DK],[1.6,.30,.05,.3,.72,-.90,.42,.33,.23]],
+    // 植栽：コンクリートの升に低木
+    planter:[[1.2,.50,.50,0,.25,0,.36,.35,.33],[1.1,.14,.42,0,.56,0,.17,.27,.13],[.42,.26,.34,-.28,.72,0,.19,.31,.15],[.36,.22,.30,.26,.70,.02,.21,.33,.16]],
+    // 自転車：車輪 2 枚＋フレーム（インスタンス色）＋ハンドル・サドル・前かご
+    bike:[[.66,.66,.05,-.52,.33,0,.10,.10,.11],[.66,.66,.05,.52,.33,0,.10,.10,.11],
+          [.90,.05,.05,0,.72,0,1,1,1],[.05,.44,.05,-.18,.52,0,1,1,1],[.52,.05,.05,.28,.52,0,1,1,1],
+          [.05,.05,.46,.50,.96,0,.14,.14,.15],[.05,.30,.05,.50,.82,0,1,1,1],[.22,.06,.11,-.18,.88,0,.12,.12,.12],[.30,.22,.30,.66,.78,0,.50,.50,.52]],
+  };
+  for(const k in G){
+    const m=new THREE.InstancedMesh(merge(G[k]),STF.mat,STF_MAX[k]);
+    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    m.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(STF_MAX[k]*3),3);
+    m.count=0; m.frustumCulled=false; scene.add(m); STF.kinds[k]=m;
+  }
+}
+function resetStf(){
+  STF.list.length=0; STF.fall.length=0; STF.cells.clear(); STF.dirty=false; STF.chk=0; STF.hits=0;
+  for(const k in STF.kinds) STF.kinds[k].count=0;
+}
+function buildStf(){
+  resetStf();
+  if(!STF.mat) return;
+  const cnt={}; for(const k in STF_MAX) cnt[k]=0;
+  const dens=QUAL.level>=3?0.5:1;                                        // 低画質では自転車と植栽を半分に
+  const put=(k,x,z,rot,col)=>{
+    if(cnt[k]>=STF_MAX[k]||bldAt(x,.5,z)||bldAt(x,2.0,z)) return null;   // 建物・街路樹・電柱・設備と重ねない
+    const q={k:k,x:x,z:z,rot:rot,col:col,dead:false,gone:false,fall:-1,fx:0,fz:0};
+    STF.list.push(q); cnt[k]++;
+    const key=stfCellKey(x,z); let c=STF.cells.get(key); if(!c){ c=[]; STF.cells.set(key,c); } c.push(q);
+    return q;
+  };
+  const gray=(a,b)=>{ const v=rf(a,b); return [v,v,v]; };
+  const ONE=[1,1,1];
+  // 通りの片側ごとの区間（交差点の ±6m は空ける）を列挙する。ax=2：XL の通り（z 方向）、ax=0：ZL の通り（x 方向）
+  const roads=[];
+  for(let i=0;i<XL.length;i++){
+    const segs=[]; const lo=CITY.z0+6, hi=CITY.z1-6;
+    const cuts=[]; for(let j=0;j<ZL.length;j++) cuts.push([ZL[j]-ZW[j]/2-6, ZL[j]+ZW[j]/2+6]);
+    let a=lo; for(let j=0;j<cuts.length;j++){ if(cuts[j][0]-a>14) segs.push([a,cuts[j][0],j-1]); a=cuts[j][1]; }
+    if(hi-a>14) segs.push([a,hi,cuts.length-1]);
+    roads.push({ax:2,c:XL[i],hw:XW[i]/2,segs:segs,i:i});
+  }
+  for(let j=0;j<ZL.length;j++){
+    const segs=[]; const lo=CITY.x0+6, hi=CITY.x1-6;
+    const cuts=[]; for(let i=0;i<XL.length;i++) cuts.push([XL[i]-XW[i]/2-6, XL[i]+XW[i]/2+6]);
+    let a=lo; for(let i=0;i<cuts.length;i++){ if(cuts[i][0]-a>14) segs.push([a,cuts[i][0],i-1]); a=cuts[i][1]; }
+    if(hi-a>14) segs.push([a,hi,cuts.length-1]);
+    roads.push({ax:0,c:ZL[j],hw:ZW[j]/2,segs:segs,i:j});
+  }
+  for(const R of roads) for(const sd of [-1,1]){
+    const wide=R.hw>=10;
+    const rot=R.ax===2?-sd*Math.PI/2:(sd<0?0:Math.PI);                  // 局所 +z が車道の中心を向く回転
+    const P=(t,off)=>R.ax===2?[R.c+sd*(R.hw+off),t]:[t,R.c+sd*(R.hw+off)];   // off＝縁石から歩道側へ（0.5〜2.5m）
+    const wall=(t)=>{ const p=P(t,3.4); return !!bldAt(p[0],2,p[1]); };   // 歩道の奥に建物の壁があるか
+    for(const seg of R.segs){
+      const a=seg[0], b=seg[1], len=b-a;
+      if(MAPID===0&&R.ax===2&&R.i===2&&seg[2]===2) continue;            // 一番街の突き当たりの先は建物
+      // 標識とゴミ箱は区間の両端（交差点の角の少し手前）
+      for(const [t,end] of [[a+1.2,0],[b-1.2,1]]){
+        if(Math.random()<.55){ const p=P(t,.7); put('sign',p[0],p[1],rot,ONE); }
+        if(Math.random()<.5){ const p=P(t+(end?-3.2:3.2),1.0); put('bin',p[0],p[1],rot+rf(-.1,.1),gray(.85,1)); }
+      }
+      let busT=-1e9;
+      if(wide){
+        // バス停：長い区間の中ほど（行灯が灯る）
+        if(len>70&&Math.random()<.6){ busT=(a+b)/2+rf(-10,10); const p=P(busT,1.2); put('bus',p[0],p[1],rot,ONE); }
+        // ガードレール：縁石のすぐ内側 0.7m を 3m ピッチで。所々に車の出入口の切れ目。渋谷・西新宿は 4 本に 1 本が植栽
+        let gap=0, n=0;
+        for(let t=a+1.6;t<b-1.4;t+=3.0,n++){
+          if(Math.abs(t-busT)<4.5) continue;
+          if(gap>0){ gap--; continue; }
+          if(Math.random()<.05){ gap=1; continue; }
+          if(MAPID!==0&&(n%4)===2){ if(Math.random()<dens){ const p=P(t,2.2); put('planter',p[0],p[1],rot,gray(.9,1.05)); } }
+          else { const p=P(t,.7); put('rail',p[0],p[1],rot,gray(.86,1.0)); }
+        }
+      } else if(Math.random()<.42){
+        // 車止め：細い通りの縁に 3.2m ピッチ
+        for(let t=a+2;t<b-1.5;t+=3.2){ const p=P(t,.6); put('bollard',p[0],p[1],rot,ONE); }
+      }
+      // 駐輪：建物の壁に沿って 0.62m ピッチの列。歌舞伎町が最も多く、西新宿はほとんど無い
+      const pb=(MAPID===0?.55:(MAPID===1?.28:.08))*(wide?.5:1)*dens;
+      for(let t=a+4;t<b-6;t+=rf(9,16)){
+        if(Math.random()>pb||!wall(t)) continue;
+        const nb=3+((Math.random()*7)|0), col=STF_BIKE_COLS[(Math.random()*STF_BIKE_COLS.length)|0];
+        for(let k=0;k<nb&&t+k*.62<b-4;k++){
+          const p=P(t+k*.62,2.0);
+          put('bike',p[0],p[1],rot+rf(-.22,.22)+(Math.random()<.5?Math.PI:0),Math.random()<.7?col:STF_BIKE_COLS[(Math.random()*STF_BIKE_COLS.length)|0]);
+        }
+        t+=nb*.62;
+      }
+    }
+  }
+  STF.dirty=true;
+}
+/* 設備 1 個が壊れる。src は SRCMUL の分岐（核は破片も加点もなし）。細長い種類は 0.45 秒だけ根元から傾いて消える */
+function stfHit(q,src,ox,oz){
+  if(q.dead) return;
+  q.dead=true; STF.dirty=true; STF.hits++;
+  src=src||KSRC;
+  if(src==='nuke'){ q.gone=true; return; }
+  if(STF_TALL[q.k]){ let dx=q.x-(ox===undefined?q.x+Math.cos(q.rot):ox), dz=q.z-(oz===undefined?q.z+Math.sin(q.rot):oz); const l=Math.hypot(dx,dz)||1;
+    q.fx=dx/l; q.fz=dz/l; q.fall=0; STF.fall.push(q); }
+  else q.gone=true;
+  const k=q.k, c=q.col, y=.8;
+  const ST={n:'鉄骨',r:.56,g:.57,b:.60,emis:0}, WH={n:'鉄骨',r:.80,g:.81,b:.82,emis:0}, PN={n:'金属パネル',r:.30,g:.33,b:.46,emis:0};
+  if(k==='rail'){ spawnDebris(q.x,y,q.z,WH,.9); spawnDebris(q.x,y,q.z,WH,.9); }
+  else if(k==='bollard'){ spawnDebris(q.x,y,q.z,ST,.8); }
+  else if(k==='bin'){ spawnDebris(q.x,y,q.z,{n:'金属パネル',r:.24,g:.28,b:.25,emis:0},.8); vfxSmoke(q.x,1.2,q.z,rf(2.5,4),rf(2,3),rf(-.5,.5),rf(2,3),rf(-.5,.5),.6); }
+  else if(k==='sign'){ spawnDebris(q.x,2.2,q.z,ST,.9); spawnDebris(q.x,2.6,q.z,PN,1.0); }
+  else if(k==='bus'){ spawnDebris(q.x,2.2,q.z,ST,.9); spawnDebris(q.x,2.6,q.z,{n:'金属パネル',r:.70,g:.68,b:.60,emis:1},1.0); spawnDebris(q.x,.6,q.z,{n:'幹',r:.42,g:.33,b:.23,emis:0},.8); }
+  else if(k==='planter'){ spawnDebris(q.x,.5,q.z,{n:'コンクリート',r:.36,g:.35,b:.33,emis:0},.7); spawnDebris(q.x,.8,q.z,{n:'樹木',r:.19,g:.31,b:.15,emis:0},.8); spawnDebris(q.x,.8,q.z,{n:'樹木',r:.19,g:.31,b:.15,emis:0},.8); }
+  else if(k==='bike'){ const M={n:'手すり',r:c[0],g:c[1],b:c[2],emis:0}; spawnDebris(q.x,y,q.z,M,.9); spawnDebris(q.x,y,q.z,M,.9); spawnDebris(q.x,.5,q.z,{n:'金属パネル',r:.12,g:.12,b:.13,emis:0},.8); }
+  if(k!=='planter') for(let i=0;i<4;i++) spark(q.x,y,q.z,rf(-6,6),rf(2,8),rf(-6,6),rf(.2,.4),1,.6,.3);
+  if(Math.random()<.25) Snd.mat(k==='planter'?1:5,q.x,y,q.z);
+  if((SRCMUL[src]||0)>0) S.score+=Math.round((STF_SCORE[k]||30)*S.combo);  // 核・破壊球では加点しない
+}
+/* 爆風（HOOKS.blast）：半径内の設備は爆心から外へ倒れ、破片になる。16m 格子で引くので走査は近傍だけ */
+function stfBlast(x,y,z,R){
+  if(!STF.list.length) return;
+  const r=R*1.1, src=KSRC, rr=r*r, yy=y*y*.25;
+  const cx0=((x-r)/16)|0, cx1=((x+r)/16)|0, cz0=((z-r)/16)|0, cz1=((z+r)/16)|0;
+  for(let cx=cx0;cx<=cx1;cx++) for(let cz=cz0;cz<=cz1;cz++){
+    const cell=STF.cells.get((cx+64)*256+(cz+64)); if(!cell) continue;
+    for(let i=0;i<cell.length;i++){ const q=cell[i]; if(q.dead) continue;
+      const dx=q.x-x, dz=q.z-z; if(dx*dx+dz*dz+yy<rr) stfHit(q,src,x,z); }
+  }
+}
+/* 核の衝撃波：半径内の設備は破片を出さずに消える（waves の nk は毎フレーム半径が広がる） */
+function stfNuke(x,z,r){
+  if(!STF.list.length) return;
+  const rr=r*r;
+  for(let i=0;i<STF.list.length;i++){ const q=STF.list[i]; if(q.dead) continue;
+    const dx=q.x-x, dz=q.z-z; if(dx*dx+dz*dz<rr){ q.dead=true; q.gone=true; STF.dirty=true; STF.hits++; } }
+}
+function updStf(dt){
+  if(!STF.mat) return;
+  if(STF.list.length){
+    // 核の衝撃波が届いた範囲は蒸発
+    for(let i=0;i<waves.length;i++){ const Wv=waves[i]; if(Wv.nk) stfNuke(Wv.x,Wv.z,Wv.r); }
+    // 落ちてくる塊に当たると倒れる（車と同じく 1/15 秒ごと）。塊の足元の範囲を 16m 格子で引く
+    STF.chk+=dt;
+    if(STF.chk>=1/15){ STF.chk=0;
+      for(let k=0;k<chunks.length;k++){ const c=chunks[k];
+        if(c.sleep||c.p[1]-c.h[1]>3.0) continue;
+        const hx=c.h[0]+.8, hz=c.h[2]+.8;
+        const cx0=((c.p[0]-hx)/16)|0, cx1=((c.p[0]+hx)/16)|0, cz0=((c.p[2]-hz)/16)|0, cz1=((c.p[2]+hz)/16)|0;
+        const src=c.src==='nuke'?'nuke':'domino';
+        for(let cx=cx0;cx<=cx1;cx++) for(let cz=cz0;cz<=cz1;cz++){
+          const cell=STF.cells.get((cx+64)*256+(cz+64)); if(!cell) continue;
+          for(let i=0;i<cell.length;i++){ const q=cell[i]; if(q.dead) continue;
+            if(Math.abs(q.x-c.p[0])<hx&&Math.abs(q.z-c.p[2])<hz) stfHit(q,src,c.p[0],c.p[2]); }
+        }
+      }
+    }
+  }
+  // 倒れる途中の設備（0.45 秒で消える）
+  if(STF.fall.length){ STF.dirty=true;
+    for(let i=STF.fall.length-1;i>=0;i--){ const q=STF.fall[i]; q.fall+=dt;
+      if(q.fall>=.45){ q.gone=true; STF.fall.splice(i,1); } }
+  }
+  if(!STF.dirty) return;
+  STF.dirty=false;
+  let w=0; const L=STF.list;                                             // 消えたものを詰める（格子の参照は dead で読み飛ばす）
+  for(let i=0;i<L.length;i++){ const q=L[i]; if(!q.gone) L[w++]=q; }
+  L.length=w;
+  const n={}; for(const k in STF.kinds) n[k]=0;
+  for(let i=0;i<L.length;i++){ const q=L[i], m=STF.kinds[q.k], j=n[q.k]++, o=j*16;
+    const M=m.instanceMatrix.array, C=m.instanceColor.array;
+    const cs=Math.cos(q.rot), sn=Math.sin(q.rot);
+    if(q.fall>=0){                                                      // 根元を軸に、爆心から遠ざかる向きへ倒れる
+      const t=Math.min(1,q.fall/.45), ph=1.35*t*t, c=Math.cos(ph), s=Math.sin(ph), ax=q.fz, az=-q.fx, k1=1-c;
+      const R00=c+k1*ax*ax, R01=-s*az, R02=k1*ax*az, R10=s*az, R11=c, R12=-s*ax, R20=k1*ax*az, R21=s*ax, R22=c+k1*az*az;
+      M[o]=R00*cs-R02*sn; M[o+1]=R10*cs-R12*sn; M[o+2]=R20*cs-R22*sn; M[o+3]=0;
+      M[o+4]=R01; M[o+5]=R11; M[o+6]=R21; M[o+7]=0;
+      M[o+8]=R00*sn+R02*cs; M[o+9]=R10*sn+R12*cs; M[o+10]=R20*sn+R22*cs; M[o+11]=0;
+    } else {
+      M[o]=cs;M[o+1]=0;M[o+2]=-sn;M[o+3]=0; M[o+4]=0;M[o+5]=1;M[o+6]=0;M[o+7]=0; M[o+8]=sn;M[o+9]=0;M[o+10]=cs;M[o+11]=0;
+    }
+    M[o+12]=q.x;M[o+13]=0;M[o+14]=q.z;M[o+15]=1;
+    C[j*3]=q.col[0]; C[j*3+1]=q.col[1]; C[j*3+2]=q.col[2];
+  }
+  for(const k in STF.kinds){ const m=STF.kinds[k]; m.count=n[k]; m.instanceMatrix.needsUpdate=true; m.instanceColor.needsUpdate=true; }
+}
+HOOKS.init.push(initStf); HOOKS.build.push(buildStf); HOOKS.reset.push(resetStf); HOOKS.update.push(updStf); HOOKS.blast.push(stfBlast);
+/* ══════════ 点光源の土台（L01）・ヘッドライト（L06）・航空障害灯（L05）（work/pc/feat/22_lights_core.py） ══════════ */
+const LIT_LV=[32,24,16,10,8];                     // 画質段階ごとの点光源の上限（最高／高／中／低／最低）
+/* ── ヘッドライト：updTraffic の描画ループで、カメラから 140m 以内の走行車を集め、近い順 10 台を円錐光にする ── */
+const HL={n:0, cx:0, cz:0, a:[], ls:[], MAX:10, RANGE:140};
+function hlBegin(){ HL.n=0; HL.cx=camera.position.x; HL.cz=camera.position.z; }
+function hlNote(c,x,z,cs,sn,brake){
+  const dx=x-HL.cx, dz=z-HL.cz, d2=dx*dx+dz*dz; if(d2>HL.RANGE*HL.RANGE) return;
+  const d=Math.sqrt(d2);
+  // 近い順 MAX 件を保つ（挿入ソート。枠はオブジェクトを再利用）
+  let k=HL.n; if(k>=HL.MAX){ if(d>=HL.a[HL.MAX-1].d) return; k=HL.MAX-1; } else { HL.n++; if(!HL.a[k]) HL.a[k]={x:0,z:0,cs:1,sn:0,brake:false,d:0}; }
+  const tmp=HL.a[k];
+  while(k>0&&HL.a[k-1].d>d){ HL.a[k]=HL.a[k-1]; k--; }
+  HL.a[k]=tmp; tmp.x=x; tmp.z=z; tmp.cs=cs; tmp.sn=sn; tmp.brake=brake; tmp.d=d;
+}
+function hlLights(cand){
+  if(!TRF.body) return;
+  const cx=camera.position.x, cy=camera.position.y, cz=camera.position.z;
+  for(let k=0;k<HL.n;k++){ const q=HL.a[k];
+    const fade=Math.min(1,(HL.RANGE-q.d)/30);                           // 枠の縁は徐々に消す
+    if(fade<=0) continue;
+    const H=HL.ls[k*2]||(HL.ls[k*2]={c:[1,.95,.82],tau:1,s:0,d:[1,0,0],cone:0.80});
+    H.x=q.x+q.cs*2.4; H.y=0.9; H.z=q.z-q.sn*2.4; H.r=26; H.i=0.95*fade;
+    H.d[0]=q.cs*0.96; H.d[1]=-0.28; H.d[2]=-q.sn*0.96;                  // 進行方向（車体の +x）へ、やや下向き
+    H.s=0.9*H.i*H.r/(Math.hypot(H.x-cx,H.y-cy,H.z-cz)+H.r*0.5+1);
+    cand.push(H);
+    if(q.brake){
+      const B=HL.ls[k*2+1]||(HL.ls[k*2+1]={c:[1,.10,.05],tau:1,s:0,d:null,cone:-2});
+      B.x=q.x-q.cs*2.3; B.y=0.7; B.z=q.z+q.sn*2.3; B.r=7; B.i=0.5*fade;
+      B.s=0.9*B.i*B.r/(Math.hypot(B.x-cx,B.y-cy,B.z-cz)+B.r*0.5+1);
+      cand.push(B);
+    }
+  }
+}
+HOOKS.lights.push(hlLights);
+HOOKS.reset.push(function(){ HL.n=0; });
+
+/* ── 航空障害灯：街の生成時に素材 19（高さ 50m 超）を集め、カメラに近い 6 灯を屋上を照らす点光源にする ── */
+const AVL=[];                                      // {b,idx,x,y,z,ph,white}
+const AVLL={t:0, n:0, pick:[], ls:[], MAX:6, RANGE:420};
+function avlFract(v){ return v-Math.floor(v); }
+function avlH2(px,py){                             // GLSL の ttH2 と同じ式（float32 を模して位相を一致させる）
+  const F=Math.fround;
+  px=F(avlFract(F(px*123.34))); py=F(avlFract(F(py*456.21)));
+  const d=F(F(px*F(px+45.32))+F(py*F(py+45.32)));
+  px=F(px+d); py=F(py+d);
+  return avlFract(F(px*py));
+}
+function avlSmooth(a,b,x){ const t=Math.max(0,Math.min(1,(x-a)/(b-a))); return t*t*(3-2*t); }
+function buildAvl(){
+  AVL.length=0; AVLL.n=0; AVLL.t=0;
+  const y0=Math.ceil(50/VOX-0.5);
+  for(let n=0;n<blds.length&&AVL.length<400;n++){ const b=blds[n];
+    if(b.H<=y0) continue;
+    const W=b.W, WH=W*b.H, vox=b.vox;
+    for(let z=0;z<b.D;z++) for(let y=y0;y<b.H;y++){ const row=W*y+WH*z;
+      for(let x=0;x<W;x++){ if(vox[row+x]!==19) continue;
+        const wx=b.ox+(x+0.5)*VOX, wy=(y+0.5)*VOX, wz=b.oz+(z+0.5)*VOX;
+        AVL.push({b:b, idx:row+x, x:wx, y:wy, z:wz, ph:avlH2(Math.floor(wx/44),Math.floor(wz/44)), white:wy>150});
+        if(AVL.length>=400) return; } }
+  }
+}
+function avlPick(){
+  const P=AVLL.pick; AVLL.n=0;
+  const cx=camera.position.x, cy=camera.position.y, cz=camera.position.z;
+  for(let n=0;n<AVL.length;n++){ const a=AVL[n];
+    if(a.b.toppled||a.b.toppling||a.b.vox[a.idx]!==19) continue;        // 倒れた・壊れた灯
+    const d=Math.hypot(a.x-cx,a.y-cy,a.z-cz); if(d>AVLL.RANGE) continue;
+    let k=AVLL.n; if(k>=AVLL.MAX){ if(d>=P[AVLL.MAX-1].d) continue; k=AVLL.MAX-1; } else { AVLL.n++; if(!P[k]) P[k]={a:null,d:0}; }
+    const tmp=P[k];
+    while(k>0&&P[k-1].d>d){ P[k]=P[k-1]; k--; }
+    P[k]=tmp; tmp.a=a; tmp.d=d;
+  }
+}
+function avlLights(cand,dt){
+  if(!AVL.length) return;
+  AVLL.t-=dt; if(AVLL.t<=0){ AVLL.t=0.3; avlPick(); }
+  const cx=camera.position.x, cy=camera.position.y, cz=camera.position.z, T=LITU.uTime.value;
+  for(let k=0;k<AVLL.n;k++){ const a=AVLL.pick[k].a;
+    const L=AVLL.ls[k]||(AVLL.ls[k]={c:[1,.12,.06],tau:1,s:0,d:null,cone:-2});
+    let it;
+    if(a.white){ const s=avlFract(T*1.3+a.ph); it=2.5*avlSmooth(0,0.015,s)*avlSmooth(0.07,0.025,s); L.c[0]=1; L.c[1]=.95; L.c[2]=.85; L.r=26; }
+    else { const fl=avlFract(T*0.75+a.ph); it=0.9*(0.03+avlSmooth(0,0.06,fl)*avlSmooth(0.50,0.36,fl)); L.c[0]=1; L.c[1]=.12; L.c[2]=.06; L.r=16; }
+    if(it<0.02) continue;
+    L.x=a.x; L.y=a.y+1.0; L.z=a.z; L.i=it;
+    L.s=L.i*L.r/(Math.hypot(L.x-cx,L.y-cy,L.z-cz)+L.r*0.5+1);
+    cand.push(L);
+  }
+}
+HOOKS.build.push(buildAvl);
+HOOKS.reset.push(function(){ AVL.length=0; AVLL.n=0; });
+HOOKS.lights.push(avlLights);
+/* ══════════ 歌舞伎町の密度（work/pc/feat/30_kabukicho_density.py） ══════════ */
+/* 区画 (x0,z0)-(x1,z1) の面 faces のうち、セントラルロード（XL[2]。花道通りで塞がれた区間を除く）か
+   幅 11m 以下の通りに面する面の番号を返す。無ければ -1。袖看板を積層する面を決める */
+function kbSignFace(x0,z0,x1,z1,faces){
+  for(let k=0;k<faces.length;k++){ const f=faces[k];
+    if(f===0||f===1){ const e=(f===0)?x0-1.5:x1+1.5;                 // 区画の縁 → 通りの端
+      for(let i=0;i<XL.length;i++){ if(Math.abs(Math.abs(e-XL[i])-XW[i]/2)>1) continue;
+        if(i===2 && !(z0>=ZL[2]-1&&z1<=ZL[3]+1)) return f;
+        if(XW[i]<=11) return f; } }
+    else { const e=(f===2)?z0-1.5:z1+1.5;
+      for(let j=0;j<ZL.length;j++){ if(Math.abs(Math.abs(e-ZL[j])-ZW[j]/2)>1) continue;
+        if(ZW[j]<=11) return f; } }
+  }
+  return -1;
+}
+/* 車止め：通りを横切る鉄柱 n 本（2 マス＝2.8m 間隔、高さ 1 マス）。cx を中心に x 方向へ並べる。
+   style 'gate' なので倒壊・得点・画面の対象にならない */
+function kbBollards(cx,z,n){
+  const W=(n-1)*2+1;
+  mkProp(cx-((W/2)|0)*VOX, z, W, 2, 1, 'gate', (set,fill)=>{ for(let k=0;k<n;k++){ set(k*2,0,0,5); } });
+}
 /*@DEFS*/
 function resetWorld(){
   cityGen++;
@@ -4004,14 +4373,12 @@ function layoutKabuki(){
   XL=[-236,-150, -46,  30, 118, 246];
   XW=[  14,  20,  16,  11,  13,  18];   // 区役所通り20m・ゴジラロード16m
   ZL=[-262,-176, -58,  46, 150, 268];
-  ZW=[  30,  11,  11,  16,  25,  14];   // 靖国通り30m・職安通り25m
+  ZW=[  25,  11,  11,  16,  11,  30];   // ZL[0]=職安通り25m／ZL[3]=花道通り16m／ZL[4]=さくら通り11m／ZL[5]=靖国通り30m（アーチ側）
   CITY={x0:-268,x1:330,z0:-300,z1:300};
 }
 function buildKabuki(){
   for(let i=0;i<XL.length-1;i++) for(let j=0;j<ZL.length-1;j++){
     if(i===2&&j===2) continue;                     // 東宝ビルの区画
-    if(i===1&&j===0) continue;                     // 超高層タワーA
-    if(i===4&&j===1) continue;                     // 超高層タワーB
     if(i===3&&j===2) continue;                     // 東急歌舞伎町タワー
     fillLot(XL[i]+XW[i]/2+1.5, ZL[j]+ZW[j]/2+1.5,
             XL[i+1]-XW[i+1]/2-1.5, ZL[j+1]-ZW[j+1]/2-1.5);
@@ -4042,14 +4409,11 @@ function buildKabuki(){
       }
     });
   }
-  // 超高層タワー2棟
-  // 歌舞伎町に超高層は無い。最も高いのは東宝ビル(130m)
-  mkBuilding((XL[1]+XL[2])/2-16, (ZL[0]+ZL[1])/2-16, 16, 16, 32, 'office', 4211,
-             {faces:[0,1,2,3], dense:.75});
-  mkBuilding((XL[4]+XL[5])/2-14, (ZL[1]+ZL[2])/2-14, 14, 14, 28, 'office', 9137,
-             {faces:[0,1,2,3], dense:.70});
+  // 歌舞伎町に超高層は無い。最も高いのは東宝ビル(130m)。区画 (1,0)・(4,1) も fillLot で雑居ビルを詰める
   // 歌舞伎町一番街のゲート：セントラルロードが靖国通りに出る所
   { const _l=blds.length; mkGate(XL[2]-XW[2]/2-VOX*3, ZL[5]-ZW[5]/2-5, Math.round(XW[2]/VOX)+1); regLM(_l,'歌舞伎町一番街','GATE DOWN',0.5); }
+  kbBollards(XL[2], ZL[5]-ZW[5]/2-9, 6);                       // 車止め：アーチの奥
+  kbBollards(XL[2], ZL[3]+ZW[3]/2+1.5, 6);                     // 車止め：花道通りの T 字路
   // ゴールデン街：区役所通りの東
   { const _l=blds.length; mkGoldenGai(XL[4]+XW[4]/2+8, ZL[3]+8, 4, 5);
     for(let k=_l;k<blds.length;k++) blds[k].wood=1;          // 木造：延焼で燃え落ちる
@@ -4867,7 +5231,7 @@ function placeCars(density){
   const put=(x,z,ang)=>{ if(PARKED.length<160) PARKED.push({x:x,z:z,ang:ang}); };
   for(let i=0;i<XL.length;i++)
     for(let j=0;j<ZL.length-1;j++){
-      if(MAPID===0&&i===2&&j===2) continue;           // 行き止まりの先は建物
+      if(MAPID===0&&i===2) continue;                  // セントラルロード（ゴジラロード）は歩行者天国：駐車しない
       if(XW[i]>=20) continue;                          // 幹線道路は車が走るので駐車しない
       const z0=ZL[j]+ZW[j]/2+8, z1=ZL[j+1]-ZW[j+1]/2-10;
       let z=z0;
@@ -4949,7 +5313,7 @@ function placeUtils(){
 /* 街全体が画角に収まる位置へカメラを置く */
 /* マップごとの初期視点。街路の奥行きとランドマークが同時に入り、最初の標的（手前の建物）も狙いやすい位置 */
 const VIEWS=[
-  ()=>({x:XL[2]+1.0, y:40, z:ZL[5]+70, yaw:0, pitch:-0.11}),                               // 歌舞伎町：一番街アーチ越しにゴジラロードの奥、東宝ビルと歌舞伎町タワー
+  ()=>({x:XL[2]+1.0, y:40, z:ZL[5]+78, yaw:0, pitch:-0.11}),                               // 歌舞伎町：一番街アーチ越しにゴジラロードの奥、東宝ビルと歌舞伎町タワー
   ()=>({x:XL[2]+2.0, y:40, z:ZL[2]+ZW[2]/2+178, yaw:0, pitch:-0.15}),                        // 渋谷：南の大通りの上空から交差点へ。QFRONT・大型ビジョン・スクランブルスクエア
   ()=>({x:XL[2]+1.0, y:44, z:ZL[4]+86, yaw:0, pitch:-0.07}),                                 // 西新宿：中央通りの南端から北へ。両側の超高層と都庁
 ];
@@ -5288,8 +5652,16 @@ function buildRoad(){
     for(let k=0;k<6;k++) g.fillRect(TX(XL[i])-w/2+k*(w/6)+w/24, zc, w/12, 7*px);
   }
   // セントラルロードの路面色（歩行者天国っぽく明るく）
-  g.fillStyle='rgba(70,58,48,.30)';
-  g.fillRect(TX(XL[2]-XW[2]/2),TZ(ZL[0]),XW[2]*px,(ZL[4]-ZL[0])*px);
+  if(MAPID===0){
+    const a=TX(XL[2]-XW[2]/2), za=ZL[3]+ZW[3]/2, zb=ZL[5]-ZW[5]/2-4;
+    g.fillStyle='#26262a'; g.fillRect(a,TZ(za),XW[2]*px,(zb-za)*px);
+    g.fillStyle='rgba(120,110,100,.16)';
+    for(let z=za;z<zb;z+=2) g.fillRect(a,TZ(z),XW[2]*px,0.12*px);
+    g.fillStyle='rgba(70,58,48,.30)'; g.fillRect(a,TZ(ZL[0]),XW[2]*px,(ZL[2]-ZL[0])*px);
+  } else {
+    g.fillStyle='rgba(70,58,48,.30)';
+    g.fillRect(TX(XL[2]-XW[2]/2),TZ(ZL[0]),XW[2]*px,(ZL[4]-ZL[0])*px);
+  }
   // 汚れとマンホール
   for(let i=0;i<220;i++){
     const rx=Math.random()*S, rz=Math.random()*S, rr=6+Math.random()*34;
@@ -6522,7 +6894,7 @@ function solveWorld(c){
 function ptsMaterial(tex,blend,lit){
   // lit=true の粒（煙・粉塵）は、炎・爆発・路面の光で照らされる
   const u={ map:{value:tex}, uGain:{value:1.0}, uLit:{value:lit?1:0},
-    uLP:LITU.uLP, uLC:LITU.uLC, uStreet:LITU.uStreet, uStreetFall:LITU.uStreetFall, uStreetCol:LITU.uStreetCol };
+    uLP:LITU.uLP, uLC:LITU.uLC, uLD:LITU.uLD, uNL:LITU.uNL, uStreet:LITU.uStreet, uStreetFall:LITU.uStreetFall, uStreetCol:LITU.uStreetCol };
   return new THREE.ShaderMaterial({
     uniforms:u,
     vertexShader:`#define NLIT ${NLIT}
@@ -6530,7 +6902,7 @@ attribute float size;
 attribute vec3 acolor;
 uniform float uGain, uLit, uStreet, uStreetFall;
 uniform vec3 uStreetCol;
-uniform vec4 uLP[NLIT]; uniform vec4 uLC[NLIT];
+uniform vec4 uLP[NLIT]; uniform vec4 uLC[NLIT]; uniform vec4 uLD[NLIT]; uniform float uNL;
 varying vec3 vC;
 void main(){
   vec3 L=vec3(1.0);
@@ -6538,9 +6910,12 @@ void main(){
     vec3 wp=(modelMatrix*vec4(position,1.0)).xyz;
     L=vec3(0.62)+uStreetCol*(uStreet*1.3*exp(-abs(wp.y)*uStreetFall));
     for(int i=0;i<NLIT;i++){
+      if(float(i)>=uNL) break;
       vec3 dv=uLP[i].xyz-wp; float d=length(dv);
       float at=clamp(1.0-d/uLP[i].w,0.0,1.0);
-      L+=uLC[i].rgb*(uLC[i].a*at*at*1.4);
+      if(at<=0.0) continue;
+      float cone=uLD[i].w<=-1.0?1.0:smoothstep(uLD[i].w,uLD[i].w+0.12,dot(-dv/max(d,0.001),uLD[i].xyz));
+      L+=uLC[i].rgb*(uLC[i].a*at*at*1.4*cone);
     }
   }
   vC=acolor*uGain*L;
@@ -10360,7 +10735,8 @@ function drawPerf(avg,worst){
     'input '+(locked?'mouse-locked':(mouseUsed?'mouse':'keyboard'))+(PAD.on?' pad':'')+' fire '+fireHeld+' cut '+CUT.on;
 }
 /* 検証用フック（PC） */
-const PCDBG={ /*@PCDBG*/
+const PCDBG={ STF:()=>STF, stfBlast:stfBlast, stfHit:stfHit, stfNuke:stfNuke, lights:()=>({nlit:NLIT, nl:LITU.uNL.value, max:LIT_LV[Math.max(0,Math.min(LIT_LV.length-1,QUAL.level|0))], cand:_litCand.length, cars:HL.n, avl:AVL.length, avlOn:AVLL.n,
+    spots:LITU.uLD.value.filter((d,i)=>i<LITU.uNL.value&&d.w>-1).length}), HL:()=>HL, AVL:()=>AVL, AVLL:()=>AVLL, /*@PCDBG*/
   start:startGame, showTitle:showTitle, titleOn:()=>titleOn,
   key:(code,down)=>{ window.dispatchEvent(new KeyboardEvent(down?'keydown':'keyup',{code:code,key:code,bubbles:true,cancelable:true})); },
   look:lookPx, keys:()=>keys, cut:()=>CUT, zoomK:()=>zoomK, fov:()=>camera.fov, PCS:PCS, cycleW:cycleW,
@@ -10576,7 +10952,7 @@ if(window.TT_DEBUG || /[?#&]debug/.test(location.search+location.hash)) window._
   pixelRatio:()=>renderer.getPixelRatio(), clock:()=>({run:runElapsed,runLeft:runLeft,slowK:slowK,real:performance.now()}),
   sndVoices:()=>Snd.voices(), toppling:()=>TOPPLING, QLV:QLV, applyLevel:applyLevel,
   releasePointers:releasePointers, ptr:()=>Array.from(PTR.entries()), fireHeld:()=>fireHeld, openMenu:openMenu, closeMenu:closeMenu,
-  TRFcars:()=>TRF.cars, PARKED:()=>PARKED, causeToast:causeToast, chipTest:()=>MATS,
+  TRFcars:()=>TRF.cars, PARKED:()=>PARKED, kb:()=>({ZW:ZW.slice(),ZL:ZL.slice(),lanes:TRF.lanes.length,peds:PED.list.length,lan:LAN.list.length,parked:PARKED.length,blds:blds.length,gate:blds.filter(b=>b.style==='gate').length}), causeToast:causeToast, chipTest:()=>MATS,
   pc:PCDBG, gunOn:()=>gunOn, gunTick:gunTick, tracers:()=>tracers, fovBase:fovBase, zoomK:()=>zoomK, rayCast:rayCast, renderAO:renderAO,
 };
 }
