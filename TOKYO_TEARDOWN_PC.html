@@ -417,6 +417,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
   <div class="row"><span class="lb">マウス視点</span><div class="row" id="pmLookRow" style="margin:0;flex:1"></div></div>
   <div class="row"><span class="lb">視点の速さ</span><button class="pb sm" id="pmSensM">−</button><span id="pmSensV">5</span><button class="pb sm" id="pmSensP">＋</button>
     <button class="pb" id="bInvY">Y軸反転</button><button class="pb" id="bSnd">音</button></div>
+  <div class="row"><span class="lb">環境音</span><div class="row" id="pmAmbRow" style="margin:0;flex:1"></div></div>
   <div class="row lbl">モード</div>
   <div class="row" id="pmModes"></div>
   <div class="row lbl">マップ</div>
@@ -7022,6 +7023,7 @@ function updShells(dt){
    距離で減衰し、カメラから見た左右で定位する */
 const Snd=(()=>{
   let ac=null,nb=null,bud=0,hum=null,master=null,comp=null,voices=0;
+  let amb=null, ambOn=true, ambVol=1;
   const MAXV=40;
   function A(){ if(!S.sound) return null;
     try{ if(!ac){ const C=window.AudioContext||window.webkitAudioContext; if(!C) return null;
@@ -7077,6 +7079,38 @@ const Snd=(()=>{
   const P=(x,y,z)=>(x===undefined?null:[x,y,z]);
   return {
     f(dt){ bud=Math.min(12, bud+(dt||.016)*480); }, kick(){ A(); },
+    /* 環境音：ノイズをフィルタで整形した 3 層（交通の唸り／雑踏／空気）＋ときどき遠くのクラクション。
+       ユーザー操作で AudioContext が起きてから鳴り始め、ポーズ（suspend）で止まる。音量は設定と状況で決まる */
+    amb(dt){
+      if(!ambOn||!S.sound){ if(amb){ try{ amb.g.gain.setTargetAtTime(0,ac.currentTime,.2); }catch(e){} } return; }
+      const a=A(); if(!a) return;
+      if(!amb){
+        try{
+          const g=a.createGain(); g.gain.value=0; g.connect(master);
+          const mk=(type,f,q,vol)=>{ const s=a.createBufferSource(); s.buffer=nb; s.loop=true; s.playbackRate.value=.5+Math.random()*.2;
+            const fl=a.createBiquadFilter(); fl.type=type; fl.frequency.value=f; fl.Q.value=q; const gg=a.createGain(); gg.gain.value=vol;
+            s.connect(fl); fl.connect(gg); gg.connect(g); s.start(); return {s:s,f:fl,g:gg}; };
+          amb={g:g, traffic:mk('lowpass',180,.8,.9), crowd:mk('bandpass',700,.9,.22), air:mk('highpass',3200,.6,.035), t:0, horn:2+Math.random()*4};
+        }catch(e){ ambOn=false; return; }
+      }
+      amb.t+=dt;
+      // 状況：高度が上がると雑踏が遠のき、停電で静まり、壊れるほど街の生活音が減る
+      const y=camera?camera.position.y:50;
+      const alt=1-Math.min(1,Math.max(0,(y-40)/320))*.7;
+      const life=1-Math.min(1,(typeof killedVox==='number'&&totalVox?killedVox/totalVox:0))*.65;
+      const pw=(typeof cityPower==='number')?cityPower:1;
+      const base=.16*ambVol;
+      const t=a.currentTime;
+      amb.g.gain.setTargetAtTime(base*(.55+.45*pw), t, .4);
+      amb.traffic.g.gain.setTargetAtTime(.9*(.6+.4*alt)*(.5+.5*life)*(.9+.1*Math.sin(amb.t*.23)), t, .5);
+      amb.crowd.g.gain.setTargetAtTime(.22*alt*life*(MAPID===1?1.5:(MAPID===0?1.1:.5))*(.85+.15*Math.sin(amb.t*.37+1)), t, .5);
+      amb.air.g.gain.setTargetAtTime(.035*(1.2-alt*.4), t, .5);
+      amb.traffic.f.frequency.setTargetAtTime(150+alt*90, t, .5);
+      // 遠くのクラクション・警笛（まれに）
+      amb.horn-=dt;
+      if(amb.horn<=0){ amb.horn=6+Math.random()*14; if(bud>2 && life>.3){ const f0=380+Math.random()*180; T(f0,f0*.98,.25+Math.random()*.3,.035*alt*ambVol,'square'); if(Math.random()<.35) setTimeout(()=>T(f0*1.26,f0*1.24,.3,.03*alt*ambVol,'square'),220); } }
+    },
+    setAmb(on,vol){ ambOn=!!on; if(vol!==undefined) ambVol=Math.max(0,Math.min(1,vol)); },
     pause(){ try{ this.humOff(); if(ac&&ac.state==='running') ac.suspend(); }catch(e){} },
     resume(){ try{ if(ac&&S.sound&&ac.state==='suspended') ac.resume(); }catch(e){} },
     voices(){ return voices; },
@@ -9593,7 +9627,7 @@ function updKeyHint(){
   el.keyhint.innerHTML='<b>'+W.n+'</b>　'+(WHINT[W.id]||'')+'<br><span>WASD 移動　↑↓←→ 視点　E/Q 上下　Shift 加速　Z/C 武器　Tab 一覧　V ズーム　T 俯瞰　M 地図　Esc メニュー　/ 操作一覧'+(PAD.on?'　🎮 パッド有効':'')+'</span>';
 }
 /* ══════════ 設定（端末に保存） ══════════ */
-const PCS={q:'auto',scale:1,fov:75,sens:5,invY:false,ao:true,snd:true,fx:1,hud:true,mlook:'lock',fps:0};   // fps: 0=無制限（ProMotion なら 120）   // mlook: lock | hover | drag
+const PCS={q:'auto',scale:1,fov:75,sens:5,invY:false,ao:true,snd:true,fx:1,hud:true,mlook:'lock',fps:0,amb:1};   // amb: 環境音 0/0.5/1   // fps: 0=無制限（ProMotion なら 120）   // mlook: lock | hover | drag
 function loadPCS(){ try{ const o=JSON.parse(localStorage.getItem('tt_pc_v1')||'null'); if(o&&typeof o==='object') Object.assign(PCS,o); }catch(e){} }
 function savePCS(){ try{ localStorage.setItem('tt_pc_v1',JSON.stringify(PCS)); }catch(e){} }
 function applyPCS(){
@@ -9601,6 +9635,7 @@ function applyPCS(){
   PCS.scale=clampN(+PCS.scale||1,.5,2); PCS.fov=clampN(+PCS.fov||75,55,110); PCS.sens=clampN((+PCS.sens||5)|0,1,10);
   if(!['lock','hover','drag'].includes(PCS.mlook)) PCS.mlook='lock';
   fpsCap=[0,60,30].includes(+PCS.fps)?+PCS.fps:0;
+  if(![0,.5,1].includes(+PCS.amb)) PCS.amb=1; Snd.setAmb(+PCS.amb>0, +PCS.amb);
   resScale=PCS.scale; aoUser=!!PCS.ao; fovUser=PCS.fov; S.sound=!!PCS.snd; QUAL.fxK=PCS.fx<1?.5:1;
   PCS.hud=true; el.hud.classList.remove('off');
   if(window.TT_QUALITY) applyLevel(QUAL.level,true); else setQuality(['auto','ultra','high','mid','low'].includes(PCS.q)?PCS.q:'auto');
@@ -9954,6 +9989,8 @@ function renderMenu(){
   [.5,.75,1,1.25,1.5,2].forEach(v=>{ sc.appendChild(mkPB(Math.round(v*100)+'%',Math.abs(PCS.scale-v)<.01,()=>{ PCS.scale=v; savePCS(); resScale=v; applyLevel(QUAL.level,true); renderMenu(); },'pmS_'+Math.round(v*100))); });
   const fv=document.getElementById('pmFovRow'); fv.innerHTML='';
   [60,70,75,80,90,100].forEach(v=>{ fv.appendChild(mkPB(v+'°',PCS.fov===v,()=>{ PCS.fov=v; savePCS(); fovUser=v; renderMenu(); },'pmF_'+v)); });
+  const ar=document.getElementById('pmAmbRow'); ar.innerHTML='';
+  [[0,'切'],[.5,'小'],[1,'標準']].forEach(([v,n])=>{ ar.appendChild(mkPB(n,+PCS.amb===v,()=>{ PCS.amb=v; Snd.setAmb(v>0,v); savePCS(); renderMenu(); },'pmAmb_'+Math.round(v*10))); });
   const fr=document.getElementById('pmFpsRow'); fr.innerHTML='';
   [[0,'無制限（ProMotion 120）'],[60,'60'],[30,'30（省電力）']].forEach(([v,n])=>{ fr.appendChild(mkPB(n,(+PCS.fps||0)===v,()=>{ PCS.fps=v; fpsCap=v; savePCS(); renderMenu(); },'pmFps_'+v)); });
   const lk=document.getElementById('pmLookRow'); lk.innerHTML='';
@@ -10304,7 +10341,7 @@ function loop(now){
   dt*=slowK;
   if(hitStopT>0){ hitStopT-=realDt; dt*=.05; }     // ヒットストップ：大きな着弾の瞬間だけ時間がほぼ止まる
   if(runStarted && !runOver && !resultOn) runElapsed=Math.max(0,(now-runStartAt-pausedTotal)/1000);   // モードの時計：壁時計の経過（処理落ち・スローで延びない）からポーズ・非表示を除く
-  Snd.f(realDt);
+  Snd.f(realDt); Snd.amb(realDt);
   readKeys();
   const CW=WPN.find(w=>w.id===wpn);
   // レールガン・機関砲は照射（連射）の開始で1発。撃ち切った後は新たに始められない（進行中のものは続く）
