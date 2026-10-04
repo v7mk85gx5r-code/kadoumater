@@ -23,7 +23,7 @@ def apply(rep, between, src):
     // 道路（幹線）とランドマーク名
     mmg.font='bold 22px "Hiragino Sans","Noto Sans JP",sans-serif'; mmg.textAlign='center'; mmg.textBaseline='bottom';
     for(let i=0;i<LMS.length;i++){ const L=LMS[i]; let cx=0,cz=0,n=0; for(const k of L.ids){ const b=blds[k]; if(!b) continue; cx+=b.ox+b.W*VOX/2; cz+=b.oz+b.D*VOX/2; n++; } if(!n) continue; cx/=n; cz/=n;
-      const tx=X(cx), tz=Z(cz)-8; mmg.lineWidth=5; mmg.strokeStyle='rgba(0,0,0,.85)'; mmg.strokeText(L.name,tx,tz); mmg.fillStyle=L.fell?'rgba(255,120,120,.9)':'rgba(255,220,140,1)'; mmg.fillText(L.name,tx,tz); }
+      const tx=X(cx), tz=Z(cz)-8+((i&1)?30:0); mmg.lineWidth=5; mmg.strokeStyle='rgba(0,0,0,.85)'; mmg.strokeText(L.name,tx,tz); mmg.fillStyle=L.fell?'rgba(255,120,120,.9)':'rgba(255,220,140,1)'; mmg.fillText(L.name,tx,tz); }
     mmg.font='bold 20px sans-serif'; mmg.fillStyle='rgba(255,255,255,.55)'; mmg.textAlign='left'; mmg.textBaseline='top'; mmg.fillText('N ↑',14,12);
     mmg.textAlign='right'; mmg.fillText(MAPNAMES[MAPID]+'　SEED '+citySeed,W-14,12);
   }

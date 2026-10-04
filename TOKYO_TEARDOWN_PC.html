@@ -129,6 +129,27 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
 #xhHit{position:absolute;left:50%;top:50%;width:26px;height:26px;transform:translate(-50%,-50%) rotate(45deg);opacity:0;pointer-events:none;}
 #xhHit::before,#xhHit::after{content:"";position:absolute;background:#fff;box-shadow:0 0 6px rgba(255,120,60,.9);}
 #xhHit::before{left:0;top:12px;width:26px;height:2px;} #xhHit::after{left:12px;top:0;width:2px;height:26px;}
+#xhBar{width:150px;height:3px;margin:5px auto 0;background:rgba(255,255,255,.14);border-radius:2px;overflow:hidden;opacity:0;transition:opacity .15s;}
+#xhBar.on{opacity:1;}
+#xhBar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,var(--cyan),#9ff);transform-origin:0 50%;}
+#xhBar.hurt i{background:linear-gradient(90deg,#ff5a1f,var(--amber));}
+#xhRing{position:absolute;left:50%;top:50%;width:56px;height:56px;transform:translate(-50%,-50%);border-radius:50%;opacity:0;pointer-events:none;
+  background:conic-gradient(rgba(255,181,61,.85) var(--cd,0deg), rgba(255,255,255,.08) 0);-webkit-mask:radial-gradient(circle,transparent 24px,#000 25px,#000 27px,transparent 28px);mask:radial-gradient(circle,transparent 24px,#000 25px,#000 27px,transparent 28px);}
+#xhRing.on{opacity:1;}
+#xhRing.ready{animation:xhReady .32s ease-out;}
+@keyframes xhReady{0%{transform:translate(-50%,-50%) scale(1);opacity:1;box-shadow:0 0 0 0 rgba(79,227,240,.9);}100%{transform:translate(-50%,-50%) scale(1.6);opacity:0;}}
+#feed{position:absolute;left:18px;top:140px;width:360px;pointer-events:none;display:flex;flex-direction:column;gap:5px;}
+.fd{font-size:12.5px;line-height:1.4;color:var(--ink);background:rgba(6,10,16,.62);border-left:3px solid var(--cyan);padding:5px 10px;border-radius:0 8px 8px 0;
+  text-shadow:0 1px 0 #000;animation:fdIn .32s cubic-bezier(.2,.9,.3,1);}
+.fd b{color:#fff;} .fd .s{color:var(--dim);font-size:11px;margin-left:6px;} .fd .t{color:var(--amber);font-weight:900;margin-left:6px;font-variant-numeric:tabular-nums;}
+.fd.lm{border-left-color:var(--gold);background:rgba(40,30,8,.7);} .fd.lm b{color:var(--gold);}
+.fd.chain{border-left-color:var(--mag);} .fd.nuke{border-left-color:#8f869d;color:var(--dim);}
+.fd.out{animation:fdOut .4s ease-in forwards;}
+@keyframes fdIn{from{opacity:0;transform:translateX(-14px);}to{opacity:1;transform:none;}}
+@keyframes fdOut{to{opacity:0;transform:translateX(-10px);}}
+.co{position:absolute;left:0;top:0;transform:translate(-50%,-100%);white-space:nowrap;font-size:12px;font-weight:900;letter-spacing:.08em;color:#fff;
+  text-shadow:0 1px 0 #000,0 0 10px rgba(255,61,127,.8);pointer-events:none;}
+.co i{display:inline-block;font-style:normal;color:var(--mag);transform-origin:50% 50%;margin-left:4px;}
 #xhCd{position:absolute;left:50%;top:calc(50% - 34px);width:60px;height:2px;margin-left:-30px;background:var(--amber);transform-origin:0 50%;transform:scaleX(0);opacity:0;}
 #cutline{position:absolute;left:0;top:0;height:2px;width:0;background:var(--cyan);transform-origin:0 50%;opacity:0;pointer-events:none;z-index:12;
   box-shadow:0 0 10px var(--cyan),0 0 28px rgba(79,227,240,.55);}
@@ -166,6 +187,18 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
   padding:12px 18px;font-size:13px;line-height:1.9;color:var(--ink);text-align:center;opacity:0;transition:opacity .4s;pointer-events:none;z-index:11;white-space:nowrap;}
 #hint.on{opacity:1;}
 #hint b{color:var(--cyan);}
+#tut{position:absolute;left:18px;top:50%;transform:translateY(-50%);width:300px;background:rgba(6,10,16,.78);border:1px solid var(--edge);border-radius:14px;
+  padding:12px 14px;display:none;pointer-events:none;z-index:11;}
+#tut.on{display:block;}
+#tut .h{font-size:10px;letter-spacing:.34em;color:var(--cyan);font-weight:800;margin-bottom:6px;}
+#tut ol{list-style:none;margin:0;padding:0;}
+#tut li{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12.5px;color:var(--ink);border-bottom:1px solid rgba(255,255,255,.06);transition:opacity .4s;}
+#tut li i{flex:0 0 18px;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--dim);display:flex;align-items:center;justify-content:center;font-size:11px;font-style:normal;color:#000;}
+#tut li.done{opacity:.45;} #tut li.done i{background:var(--cyan);border-color:var(--cyan);}
+#tut li.done i::after{content:"✓";font-weight:900;}
+#tut li.cur{color:#fff;} #tut li.cur i{border-color:var(--cyan);box-shadow:0 0 10px rgba(79,227,240,.6);}
+#tut .f{margin-top:8px;font-size:10.5px;color:var(--dim);}
+#tut.fin .h{color:var(--gold);}
 #perf{position:absolute;left:18px;top:110px;z-index:45;font:11px/1.4 Menlo,Consolas,monospace;color:#9fe;background:rgba(0,0,0,.55);padding:6px 9px;
   border-radius:6px;pointer-events:none;white-space:pre;display:none;}
 #perf.on{display:block;}
@@ -326,13 +359,17 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
   <div id="xhCd"></div>
   <div id="xhSp"></div>
   <div id="xhHit"></div>
-  <div id="xhInfo"><div id="xhDist">—</div><div id="xhTgt"></div></div>
+  <div id="xhInfo"><div id="xhDist">—</div><div id="xhTgt"></div><div id="xhBar"><i></i></div></div>
+  <div id="xhRing"></div>
+  <div id="feed"></div>
+  <div id="callouts"></div>
   <button id="det">起爆 <kbd>X</kbd><span id="detN">0</span></button>
   <div id="wbar"></div>
   <div id="wtoast"></div>
   <div id="mmWrap"><canvas id="minimap" width="420" height="420"></canvas><div id="mmLbl">MAP　N↑</div></div>
   <div id="keyhint"></div>
   <div id="hint"></div>
+  <div id="tut"><div class="h">はじめの操作</div><ol id="tutList"></ol><div class="f">全部できたら消えます　<kbd>/</kbd> 操作一覧</div></div>
 </div>
 <div id="bigmap" class="ov"><div class="sheet" style="width:auto;text-align:center"><h3>MAP <span class="hk">M / Esc で閉じる</span><button id="bmClose" aria-label="閉じる">✕</button></h3><canvas id="bigmapCv" width="1400" height="1400"></canvas><div id="bmLegend"><i style="background:rgba(79,227,240,.6)"></i>健在　<i style="background:rgba(255,209,102,.95)"></i>ランドマーク　<i style="background:rgba(255,181,61,.85)"></i>損傷　<i style="background:rgba(255,61,127,.5)"></i>倒壊　<i style="background:rgba(255,120,30,.95);border-radius:50%"></i>火災</div></div></div>
 <div id="cutline"></div>
@@ -346,10 +383,11 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
 
 <div id="pmenu" class="ov"><div class="sheet">
   <h3>MENU <span class="hk">矢印キーで移動 ／ Enter で決定 ／ Esc で閉じる</span><button id="pmClose" aria-label="閉じる">✕</button></h3>
-  <div class="row"><button class="pb hi" id="pmResume">▶ 再開</button><button class="pb sub" id="bHint">操作方法 ( / )</button><button class="pb sub" id="bFull">全画面</button></div>
+  <div class="row"><button class="pb hi" id="pmResume">▶ 再開</button><button class="pb sub" id="bHint">操作方法 ( / )</button><button class="pb sub" id="bFull">全画面 (F)</button></div>
   <div class="row lbl">画質</div>
   <div class="row"><span class="lb">プリセット</span><div class="row" id="pmQualRow" style="margin:0;flex:1"></div></div>
   <div class="row"><span class="lb">解像度スケール</span><div class="row" id="pmScaleRow" style="margin:0;flex:1"></div></div>
+  <div class="row"><span class="lb">フレーム上限</span><div class="row" id="pmFpsRow" style="margin:0;flex:1"></div></div>
   <div class="row"><span class="lb">効果</span><button class="pb" id="bAO">SSAO</button><button class="pb" id="bFx">演出</button><button class="pb" id="bHud">HUD</button><button class="pb" id="bPerf">性能表示</button></div>
   <div class="row lbl">操作</div>
   <div class="row"><span class="lb">視野角</span><div class="row" id="pmFovRow" style="margin:0;flex:1"></div></div>
@@ -382,6 +420,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
       <div class="k"><kbd>V</kbd></div><div class="v">ズーム切替</div>
       <div class="k"><kbd>R</kbd> / <kbd>T</kbd></div><div class="v">視点を水平に ／ 俯瞰ポイントを順に移動</div>
       <div class="k"><kbd>M</kbd></div><div class="v">大きな地図（ランドマーク名・損傷・火災）</div>
+      <div class="k"><kbd>F</kbd></div><div class="v">全画面の切替</div>
       <div class="k"><kbd>H</kbd> / <kbd>O</kbd></div><div class="v">HUD表示切替 ／ 性能表示（MacBook の F1/F2 は輝度キーなので / と O を用意）</div>
       <div class="k"><kbd>Esc</kbd> / <kbd>P</kbd></div><div class="v">メニュー（キーで操作できます）</div>
     </div>
@@ -9171,6 +9210,7 @@ const el={
   keyhint:document.getElementById('keyhint'), xhCd:document.getElementById('xhCd'), modeTag:document.getElementById('modeTag'),
 };
 const clampN=(v,a,b)=>Math.max(a,Math.min(b,v));
+let fpsCap=0, lastDraw=0;                    // フレーム上限（設定）と最後に描いた時刻
 const STYLE_NAME={zakkyo:'雑居ビル',shop:'商店ビル',apart:'マンション',office:'オフィスビル',tower:'高層ビル',car:'駐車車両',
   pole:'電柱',tree:'街路樹',gate:'アーチ',toho:'新宿東宝ビル',trafo:'変圧器',rail:'高架',hardened:'耐爆構造ビル',park:'公園',
   water:'給水塔',tank:'タンク',gov:'庁舎',hall:'ホール',station:'駅'};
@@ -9185,7 +9225,9 @@ function targetLabel(h){
   const mat=MATS[m]?MATS[m].n:'';
   const dmg=b.init?Math.round((1-b.live/b.init)*100):0;
   el.tgt.classList.toggle('lm',!!lm);
-  return name+(mat?'　'+mat:'')+(dmg>0?'　損傷'+dmg+'%':'');
+  const bar=document.getElementById('xhBar'); if(bar){ bar.classList.add('on'); bar.classList.toggle('hurt',dmg>=15); bar.firstElementChild.style.transform='scaleX('+(b.init?Math.max(0,b.live/b.init):0).toFixed(3)+')'; }
+  const hgt=Math.round(b.H*VOX);
+  return name+(mat?'　'+mat:'')+'　'+hgt+'m'+(dmg>0?'　損傷'+dmg+'%':'');
 }
 let hudT=0, mmT=0;
 /* 着弾予告：照準の先（建物なら屋上、地面なら路面）に兵装の効果半径の輪を置く。絨毯爆撃は 9 点、焼夷弾は火の海の広さ */
@@ -9238,6 +9280,26 @@ function updAimRings(dt){
     } else sp.classList.remove('on');
   }
 }
+/* 倒壊予告：傾き始めた建物の上に「倒壊」と倒れる向きを 1.5 秒ほど出す */
+const coEl=document.getElementById('callouts'); const coMap=new Map(); const _cv=new THREE.Vector3();
+function updCallouts(){
+  if(!coEl) return;
+  const seen=new Set();
+  if(!uiBlocked() && typeof TOPPLING!=='undefined'){
+    for(let i=0;i<TOPPLING.length && seen.size<4;i++){ const b=TOPPLING[i]; if(!b||!b.toppling||b.live<=0) continue;
+      seen.add(b.id);
+      let d=coMap.get(b.id);
+      if(!d){ d=document.createElement('div'); d.className='co'; d.innerHTML='倒壊 <i>➜</i>'; coEl.appendChild(d); coMap.set(b.id,d); d._t=performance.now(); }
+      _cv.set(b.ox+b.W*VOX/2, b.H*VOX+4, b.oz+b.D*VOX/2).project(camera);
+      if(_cv.z>1||Math.abs(_cv.x)>1.2||Math.abs(_cv.y)>1.2){ d.style.display='none'; continue; }
+      d.style.display='';
+      d.style.left=((_cv.x*.5+.5)*window.innerWidth)+'px'; d.style.top=((-_cv.y*.5+.5)*window.innerHeight)+'px';
+      if(b.lean){ const a=Math.atan2(-(b.lean[0]*Math.cos(cam.yaw)-b.lean[1]*Math.sin(cam.yaw)),(b.lean[0]*Math.sin(cam.yaw)+b.lean[1]*Math.cos(cam.yaw))); d.firstElementChild.style.transform='rotate('+(-a).toFixed(2)+'rad)'; }
+      d.style.opacity=Math.max(0,1-(performance.now()-d._t)/2200).toFixed(2);
+    }
+  }
+  for(const [id,d] of coMap){ if(!seen.has(id)){ if(d.parentNode) d.parentNode.removeChild(d); coMap.delete(id); } }
+}
 let hitFlash=0;
 function updHitMark(dt){
   const h=document.getElementById('xhHit'); if(!h) return;
@@ -9245,7 +9307,7 @@ function updHitMark(dt){
   else if(h.style.opacity!=='0') h.style.opacity='0';
 }
 function updHUD(dt){
-  updAimRings(dt); updHitMark(dt); drawCompass(dt);
+  updAimRings(dt); updHitMark(dt); drawCompass(dt); updTut(dt); updCallouts();
   mmT+=dt; if(mmT>.15){ mmT=0; drawMinimap(); }
   hudT+=dt; if(hudT<.1) return; hudT=0;
   let p=Math.min(100,killedVox/totalVox*100);
@@ -9257,13 +9319,36 @@ function updHUD(dt){
   el.fill.style.width=p+'%';
   el.num.innerHTML=p.toFixed(1)+'<small>%</small>';
   const h=aimRay();
-  if(h.miss){ el.dist.textContent='—'; el.dist.style.color=''; el.tgt.textContent=''; }
+  if(h.miss){ el.dist.textContent='—'; el.dist.style.color=''; el.tgt.textContent=''; const bar=document.getElementById('xhBar'); if(bar) bar.classList.remove('on'); }
   else {
     if(wpn==='missile'||wpn==='carpet'){ el.dist.textContent='◈ LOCK  '+Math.round(h.d)+' m'; el.dist.style.color='#ff5a6a'; }
     else { el.dist.textContent=Math.round(h.d)+' m'; el.dist.style.color=''; }
     el.tgt.textContent=targetLabel(h);
+    if(h.ground){ const bar=document.getElementById('xhBar'); if(bar) bar.classList.remove('on'); }
   }
   if(el.modeTag) el.modeTag.textContent=modeDef().lbl;
+}
+/* 破壊の実況フィード：何が・なぜ・どれだけ */
+const feedEl=document.getElementById('feed');
+let feedN=0;
+function feedPush(html,cls,ms){
+  if(!feedEl) return;
+  const d=document.createElement('div'); d.className='fd'+(cls?' '+cls:''); d.innerHTML=html; feedEl.appendChild(d);
+  while(feedEl.children.length>6) feedEl.removeChild(feedEl.firstChild);
+  const id=++feedN;
+  setTimeout(()=>{ if(d.parentNode){ d.classList.add('out'); setTimeout(()=>{ if(d.parentNode) d.parentNode.removeChild(d); },420); } },ms||6500);
+}
+function bldName(b){ const lm=(b.lm!==undefined&&LMS[b.lm])?LMS[b.lm]:null; return lm?lm.name:(STYLE_NAME[b.style]||'建物'); }
+const FEED_SKIP={pole:1,car:1,tree:1,trafo:1,water:1,tank:1,gate:1};
+/* 同時に多数が倒れた時は「N棟 倒壊」にまとめる（核・破壊球・連鎖で流れが埋まらないように） */
+const FEEDB={n:0,t:0,cls:''};
+function feedBld(html,cls,isLm){
+  const now=performance.now();
+  if(isLm || now-FEEDB.t>900){ FEEDB.t=now; FEEDB.n=1; FEEDB.cls=cls; feedPush(html,cls); return; }
+  FEEDB.n++;
+  const last=feedEl.lastElementChild;
+  if(last && last.dataset.agg){ last.innerHTML='<b>'+FEEDB.n+'棟</b> 倒壊<span class="s">'+(cls==='nuke'?'核･破壊球・加点なし':'連鎖')+'</span>'; }
+  else { feedPush('<b>'+FEEDB.n+'棟</b> 倒壊<span class="s">'+(cls==='nuke'?'核･破壊球・加点なし':'連鎖')+'</span>',cls); feedEl.lastElementChild.dataset.agg='1'; }
 }
 let causeT=0, causeLast='';
 function causeToast(t){
@@ -9344,7 +9429,10 @@ function updScoreUI(dt){
     const b=blds[k];
     if(b.style==='pole'||b.style==='car'||b.style==='tree') continue;
     tot2++;
-    if(b.live<=b.init*0.15) d2++;
+    if(b.live<=b.init*0.15){ d2++;
+      if(!b.fedDown){ b.fedDown=1; if(b.init>=320 && !booting && !FEED_SKIP[b.style]){ const src=b.lastSrc||'collapse'; const ton=Math.round(b.init*TON_PER_VOX);
+        feedBld('<b>'+bldName(b)+'</b> 倒壊<span class="s">'+(SRCNAME[src]||'')+(src==='nuke'?'・加点なし':'')+'</span><span class="t">'+(ton>=1000?(ton/1000).toFixed(1)+'kt':ton+'t')+'</span>', src==='nuke'?'nuke':'', b.lm!==undefined); } }
+    } else if(b.fedDown && b.live>b.init*0.15) b.fedDown=0;
   }
   if(d2!==downed){
     if(d2>downed && elBld){
@@ -9369,6 +9457,7 @@ function updScoreUI(dt){
   } else elChain.style.opacity='0';
 }
 function showCombo(){
+  { let col='#ffd166', nm='GOOD'; for(const r of CHAINRANK) if(S.combo>=r[0]){ col=r[1]; nm=r[2]; } if(S.combo>=4) feedPush('<b style="color:'+col+'">×'+S.combo+'</b> <span class="s">'+nm+'</span>','chain',3500); }
   elChain.animate([
     {transform:'translateX(-50%) scale(1.5)',filter:'brightness(2.2)'},
     {transform:'translateX(-50%) scale(1)',filter:'brightness(1)'}
@@ -9378,6 +9467,7 @@ function showCombo(){
 function hideCombo(){}
 let bannerLmT=0;
 function banner(t,u,cls,dur){
+  if(cls==='lm') feedPush('<b>'+t+'</b> 陥落<span class="s">LANDMARK DOWN</span>','lm',9000);
   const now=performance.now();
   if(cls!=='lm' && now<bannerLmT) return;
   if(cls==='lm') bannerLmT=now+(dur||2800);
@@ -9458,8 +9548,13 @@ function selW(id,fromUser){
   Snd.kick();
   updWeaponUI(); updKeyHint();
 }
+let wasCool=false;
 function updWeaponUI(){
   const cool=cd>0;
+  const ring=document.getElementById('xhRing');
+  if(ring){ if(cool && cdMax>=0.5){ ring.classList.add('on'); ring.style.setProperty('--cd',((1-cd/cdMax)*360).toFixed(0)+'deg'); }
+    else { ring.classList.remove('on'); if(wasCool && cdMax>=0.5){ ring.classList.remove('ready'); void ring.offsetWidth; ring.classList.add('ready'); } } }
+  wasCool=cool;
   const q=wbar.querySelector('.q.sel');
   if(q){ q.classList.toggle('cool',cool); q.style.setProperty('--cd',cool?((cd/cdMax)*100).toFixed(0)+'%':'0%'); }
   if(el.xhCd){ el.xhCd.style.opacity=cool?'.9':'0'; el.xhCd.style.transform='scaleX('+(cool?Math.max(0,1-cd/cdMax).toFixed(3):0)+')'; }
@@ -9470,13 +9565,14 @@ function updKeyHint(){
   el.keyhint.innerHTML='<b>'+W.n+'</b>　'+(WHINT[W.id]||'')+'<br><span>WASD 移動　↑↓←→ 視点　E/Q 上下　Shift 加速　Z/C 武器　Tab 一覧　V ズーム　T 俯瞰　M 地図　Esc メニュー　/ 操作一覧'+(PAD.on?'　🎮 パッド有効':'')+'</span>';
 }
 /* ══════════ 設定（端末に保存） ══════════ */
-const PCS={q:'auto',scale:1,fov:75,sens:5,invY:false,ao:true,snd:true,fx:1,hud:true,mlook:'lock'};   // mlook: lock | hover | drag
+const PCS={q:'auto',scale:1,fov:75,sens:5,invY:false,ao:true,snd:true,fx:1,hud:true,mlook:'lock',fps:0};   // fps: 0=無制限（ProMotion なら 120）   // mlook: lock | hover | drag
 function loadPCS(){ try{ const o=JSON.parse(localStorage.getItem('tt_pc_v1')||'null'); if(o&&typeof o==='object') Object.assign(PCS,o); }catch(e){} }
 function savePCS(){ try{ localStorage.setItem('tt_pc_v1',JSON.stringify(PCS)); }catch(e){} }
 function applyPCS(){
   loadPCS();
   PCS.scale=clampN(+PCS.scale||1,.5,2); PCS.fov=clampN(+PCS.fov||75,55,110); PCS.sens=clampN((+PCS.sens||5)|0,1,10);
   if(!['lock','hover','drag'].includes(PCS.mlook)) PCS.mlook='lock';
+  fpsCap=[0,60,30].includes(+PCS.fps)?+PCS.fps:0;
   resScale=PCS.scale; aoUser=!!PCS.ao; fovUser=PCS.fov; S.sound=!!PCS.snd; QUAL.fxK=PCS.fx<1?.5:1;
   PCS.hud=true; el.hud.classList.remove('off');
   if(window.TT_QUALITY) applyLevel(QUAL.level,true); else setQuality(['auto','ultra','high','mid','low'].includes(PCS.q)?PCS.q:'auto');
@@ -9567,7 +9663,7 @@ function releasePointers(){
   hideCutLine(); el.xh.classList.remove('cut');
 }
 /* ── キーボード ── */
-const GAME_KEYS=new Set(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter','F1','F2','Slash','KeyO','KeyM','KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','KeyZ','KeyC','KeyX','KeyV','KeyR','KeyT','KeyH','KeyP','KeyI','KeyJ','KeyK','KeyL','ShiftLeft','ShiftRight','Escape']);
+const GAME_KEYS=new Set(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter','F1','F2','Slash','KeyO','KeyM','KeyF','KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','KeyZ','KeyC','KeyX','KeyV','KeyR','KeyT','KeyH','KeyP','KeyI','KeyJ','KeyK','KeyL','ShiftLeft','ShiftRight','Escape']);
 const keyLook={x:0,y:0};
 window.addEventListener('keydown',e=>{
   const code=e.code;
@@ -9579,6 +9675,7 @@ window.addEventListener('keydown',e=>{
     if(code==='Escape'||(code==='KeyP'&&ov!==keysEl)||((code==='F1'||code==='Slash')&&ov===keysEl)){ if(!rep) closeTop(); e.preventDefault(); return; }
     if(ov===titleEl && (code==='Enter'||code==='Space') && !rep && (!KNAV.lastId||KNAV.lastId==='tStart')){ startGame(); e.preventDefault(); return; }
     if(ov===titleEl && (code==='F1'||code==='Slash') && !rep){ openKeys(); e.preventDefault(); return; }
+    if(code==='KeyF' && !rep && (ov===titleEl||ov===pmenu)){ toggleFull(); e.preventDefault(); return; }
     if(code==='Tab'){ if(ov===wpanel) closePanel(); e.preventDefault(); return; }
     if(code==='KeyM' && ov===bigmapEl){ if(!rep) closeMap(); e.preventDefault(); return; }
     if(code==='ArrowUp'||code==='KeyW'||code==='KeyI'){ knavMove(0,-1); e.preventDefault(); return; }
@@ -9604,6 +9701,7 @@ window.addEventListener('keydown',e=>{
     case 'KeyR': cam.pitch=0; break;
     case 'KeyT': cycleView(); break;
     case 'KeyH': toggleHud(); break;
+    case 'KeyF': toggleFull(); break;
     case 'KeyM': openMap(); break;
     case 'F1': case 'Slash': openKeys(); break;
     case 'F2': case 'KeyO': togglePerf(); break;
@@ -9774,7 +9872,7 @@ function startGame(){
   cam.yaw=titleYaw0; cam.pos.y=titleY0;
   Snd.kick();
   if(mouseUsed) requestLock();
-  showHint();
+  tutStart(); if(!TUT.on) showHint();
   banner(MAPNAMES[MAPID],modeDef().lbl);
 }
 document.getElementById('tStart').addEventListener('click',e=>{ e.stopPropagation(); startGame(); });
@@ -9817,6 +9915,8 @@ function renderMenu(){
   [.5,.75,1,1.25,1.5,2].forEach(v=>{ sc.appendChild(mkPB(Math.round(v*100)+'%',Math.abs(PCS.scale-v)<.01,()=>{ PCS.scale=v; savePCS(); resScale=v; applyLevel(QUAL.level,true); renderMenu(); },'pmS_'+Math.round(v*100))); });
   const fv=document.getElementById('pmFovRow'); fv.innerHTML='';
   [60,70,75,80,90,100].forEach(v=>{ fv.appendChild(mkPB(v+'°',PCS.fov===v,()=>{ PCS.fov=v; savePCS(); fovUser=v; renderMenu(); },'pmF_'+v)); });
+  const fr=document.getElementById('pmFpsRow'); fr.innerHTML='';
+  [[0,'無制限（ProMotion 120）'],[60,'60'],[30,'30（省電力）']].forEach(([v,n])=>{ fr.appendChild(mkPB(n,(+PCS.fps||0)===v,()=>{ PCS.fps=v; fpsCap=v; savePCS(); renderMenu(); },'pmFps_'+v)); });
   const lk=document.getElementById('pmLookRow'); lk.innerHTML='';
   [['lock','ロック（クリックで取得）'],['hover','ホバー（動かすだけ・トラックパッド向け）'],['drag','ドラッグ']].forEach(([m,n])=>{ lk.appendChild(mkPB(n,PCS.mlook===m,()=>{ PCS.mlook=m; savePCS(); if(m!=='lock'&&locked){ try{ document.exitPointerLock(); }catch(e){} } renderMenu(); },'pmL_'+m)); });
   document.getElementById('pmSensV').textContent=PCS.sens;
@@ -9900,7 +10000,7 @@ function drawMapTo(cv,mmg,big){
     // 道路（幹線）とランドマーク名
     mmg.font='bold 22px "Hiragino Sans","Noto Sans JP",sans-serif'; mmg.textAlign='center'; mmg.textBaseline='bottom';
     for(let i=0;i<LMS.length;i++){ const L=LMS[i]; let cx=0,cz=0,n=0; for(const k of L.ids){ const b=blds[k]; if(!b) continue; cx+=b.ox+b.W*VOX/2; cz+=b.oz+b.D*VOX/2; n++; } if(!n) continue; cx/=n; cz/=n;
-      const tx=X(cx), tz=Z(cz)-8; mmg.lineWidth=5; mmg.strokeStyle='rgba(0,0,0,.85)'; mmg.strokeText(L.name,tx,tz); mmg.fillStyle=L.fell?'rgba(255,120,120,.9)':'rgba(255,220,140,1)'; mmg.fillText(L.name,tx,tz); }
+      const tx=X(cx), tz=Z(cz)-8+((i&1)?30:0); mmg.lineWidth=5; mmg.strokeStyle='rgba(0,0,0,.85)'; mmg.strokeText(L.name,tx,tz); mmg.fillStyle=L.fell?'rgba(255,120,120,.9)':'rgba(255,220,140,1)'; mmg.fillText(L.name,tx,tz); }
     mmg.font='bold 20px sans-serif'; mmg.fillStyle='rgba(255,255,255,.55)'; mmg.textAlign='left'; mmg.textBaseline='top'; mmg.fillText('N ↑',14,12);
     mmg.textAlign='right'; mmg.fillText(MAPNAMES[MAPID]+'　SEED '+citySeed,W-14,12);
   }
@@ -9947,6 +10047,39 @@ function openMap(){ if(mapOn) return; mapOn=true; bigmapEl.classList.add('on'); 
 function closeMap(){ if(!mapOn) return; mapOn=false; bigmapEl.classList.remove('on'); if(KNAV.root===bigmapEl) knavClose(); }
 document.getElementById('bmClose').addEventListener('click',e=>{ e.stopPropagation(); closeMap(); });
 bigmapEl.addEventListener('click',e=>{ if(e.target.id==='bigmap') closeMap(); });
+/* 初回チュートリアル：やってみれば分かることを、達成式で順に促す */
+const TUT={on:false, done:false, steps:[
+  {id:'look', t:'<kbd>↑↓←→</kbd> で見回す', v:0},
+  {id:'move', t:'<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> で移動（<kbd>Shift</kbd> 加速）', v:0},
+  {id:'fire', t:'<kbd>Space</kbd> で発射', v:0},
+  {id:'wpn',  t:'<kbd>Z</kbd> / <kbd>C</kbd> で武器を切り替える', v:0},
+  {id:'menu', t:'<kbd>Tab</kbd> で武器一覧、<kbd>Esc</kbd> でメニュー', v:0},
+], last:{yaw:0,pitch:0,x:0,z:0,shots:0,wpn:'missile'}, acc:{look:0,move:0}, finT:0};
+function tutStart(){
+  let seen=false; try{ seen=!!localStorage.getItem('tt_pc_tut'); }catch(e){}
+  if(seen||TUT.done) return;
+  TUT.on=true; TUT.last={yaw:cam.yaw,pitch:cam.pitch,x:cam.pos.x,z:cam.pos.z,shots:S.shots,wpn:wpn}; TUT.acc.look=0; TUT.acc.move=0;
+  const ol=document.getElementById('tutList'); ol.innerHTML='';
+  TUT.steps.forEach((s,i)=>{ s.v=0; const li=document.createElement('li'); li.id='tut_'+s.id; li.innerHTML='<i></i><span>'+s.t+'</span>'; if(i===0) li.classList.add('cur'); ol.appendChild(li); });
+  document.getElementById('tut').classList.add('on');
+}
+function tutMark(id){ const s=TUT.steps.find(x=>x.id===id); if(!s||s.v) return; s.v=1; const li=document.getElementById('tut_'+id); if(li){ li.classList.add('done'); li.classList.remove('cur'); } Snd.kick();
+  const nxt=TUT.steps.find(x=>!x.v); if(nxt){ const n=document.getElementById('tut_'+nxt.id); if(n) n.classList.add('cur'); }
+  else { TUT.finT=2.6; const t=document.getElementById('tut'); t.classList.add('fin'); t.querySelector('.h').textContent='完了！あとは好きなように壊そう'; try{ localStorage.setItem('tt_pc_tut','1'); }catch(e){} } }
+function updTut(dt){
+  if(!TUT.on) return;
+  const t=document.getElementById('tut');
+  if(TUT.finT>0){ TUT.finT-=dt; if(TUT.finT<=0){ TUT.on=false; TUT.done=true; t.classList.remove('on'); t.classList.remove('fin'); } return; }
+  const L=TUT.last;
+  TUT.acc.look+=Math.abs(cam.yaw-L.yaw)+Math.abs(cam.pitch-L.pitch); L.yaw=cam.yaw; L.pitch=cam.pitch;
+  TUT.acc.move+=Math.hypot(cam.pos.x-L.x,cam.pos.z-L.z); L.x=cam.pos.x; L.z=cam.pos.z;
+  if(TUT.acc.look>0.6) tutMark('look');
+  if(TUT.acc.move>30) tutMark('move');
+  if(S.shots>L.shots||railOn||gunOn) tutMark('fire');
+  if(wpn!==L.wpn) tutMark('wpn');
+  if(menuOpen()||panelOpen()) tutMark('menu');
+  t.style.opacity = (titleOn||keysOn||mapOn||resultOn) ? '0' : '1';
+}
 /* 初回だけ短い操作ヒント */
 let hintT=null;
 function showHint(force){
@@ -9979,7 +10112,7 @@ const PCDBG={
   start:startGame, showTitle:showTitle, titleOn:()=>titleOn,
   key:(code,down)=>{ window.dispatchEvent(new KeyboardEvent(down?'keydown':'keyup',{code:code,key:code,bubbles:true,cancelable:true})); },
   look:lookPx, keys:()=>keys, cut:()=>CUT, zoomK:()=>zoomK, fov:()=>camera.fov, PCS:PCS, cycleW:cycleW,
-  menuOpen:menuOpen, panelOpen:panelOpen, keysOn:()=>keysOn, mapOn:()=>mapOn, openMap:openMap, closeMap:closeMap, drawCompass:drawCompass, knav:()=>({root:KNAV.root?KNAV.root.id:null, idx:KNAV.idx, id:KNAV.lastId}),
+  menuOpen:menuOpen, panelOpen:panelOpen, keysOn:()=>keysOn, mapOn:()=>mapOn, feedPush:feedPush, feedCount:()=>feedEl.children.length, fpsCap:()=>fpsCap, tut:()=>TUT, tutStart:tutStart, openMap:openMap, closeMap:closeMap, drawCompass:drawCompass, knav:()=>({root:KNAV.root?KNAV.root.id:null, idx:KNAV.idx, id:KNAV.lastId}),
   pad:()=>PAD, locked:()=>locked, fireDown:fireDown, fireUp:fireUp, fireSrc:()=>fireSrc,
   wbar:()=>Array.from(wbar.querySelectorAll('.q')).map(b=>b.dataset.w+(b.classList.contains('sel')?'*':'')),
   minimap:()=>mmCv, readKeys:readKeys, openMenu:openMenu, closeMenu:closeMenu, openPanel:openPanel, closePanel:closePanel, openKeys:openKeys,
@@ -10095,6 +10228,8 @@ document.addEventListener('visibilitychange',()=>{
 window.addEventListener('pagehide',()=>setPaused(true,'bg'));
 function loop(now){
   requestAnimationFrame(loop);
+  if(fpsCap>0 && now-lastDraw<1000/fpsCap-2) return;   // フレーム上限（省電力）：間引いた時間は次の dt に含まれる
+  lastDraw=now;
   const rawReal=(now-last)/1000; last=now;
   let raw=rawReal;
   if(!(raw>0)||raw>1) raw=.016;                     // 長い空白（バックグラウンド復帰など）はコマ送りにしない
