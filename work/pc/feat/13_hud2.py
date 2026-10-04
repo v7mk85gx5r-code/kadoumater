@@ -136,3 +136,6 @@ let hitFlash=0;""")
     # fpsCap は起動列（applyPCS）より前に初期化されている必要があるので UI ブロックの先頭で宣言
     U("const clampN=(v,a,b)=>Math.max(a,Math.min(b,v));","const clampN=(v,a,b)=>Math.max(a,Math.min(b,v));\nlet fpsCap=0, lastDraw=0;                    // フレーム上限（設定）と最後に描いた時刻")
     U("keysOn:()=>keysOn, mapOn:()=>mapOn,","keysOn:()=>keysOn, mapOn:()=>mapOn, feedPush:feedPush, feedCount:()=>feedEl.children.length, fpsCap:()=>fpsCap,")
+    # フレーム上限中は計測フレームが上限の間隔になるので、自動画質の「重い」判定は上限を基準にする
+    rep("  if(m>25 && QUAL.level<QLV.length-1){ QUAL.downT=now; applyLevel(QUAL.level+(m>60?2:1)); }   // 極端に重ければ2段落とす",
+        "  const slowMs=Math.max(25, fpsCap>0?1000/fpsCap*1.35:0);   // フレーム上限（30/60）の時はその間隔を基準に\n  if(m>slowMs && QUAL.level<QLV.length-1){ QUAL.downT=now; applyLevel(QUAL.level+(m>slowMs*2.4?2:1)); }   // 極端に重ければ2段落とす")

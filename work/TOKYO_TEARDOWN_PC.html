@@ -2279,7 +2279,7 @@ const QUAL={mode:'auto', level:0, applied:false, smokeMax:120, pedK:1, pr:1, el:
   hist:[], settleUntil:0, downT:0, showPerf:false, ring:new Float32Array(180), ri:0, fxK:1, minDt:1};
 /* 段階ごとの設定：3D内部解像度（目標画素数, MP）／反射の更新間隔（0=切る）／煙・人の上限／ブルーム段数／MSAA */
 const QLV=[
-  {mp:99,   refl:1, smoke:260, ped:1.0,  mips:6, msaa:true,  ao:1, streak:1},   // 最高：ネイティブ解像度・SSAO・反射を毎フレーム
+  {mp:99,   refl:1, smoke:260, ped:1.0,  mips:6, msaa:true,  ao:2, streak:1},   // 最高：ネイティブ解像度・SSAO（フル解像度）・反射を毎フレーム
   {mp:3.2,  refl:1, smoke:200, ped:1.0,  mips:5, msaa:true,  ao:1, streak:1},   // 高
   {mp:2.1,  refl:2, smoke:140, ped:0.7,  mips:5, msaa:true,  ao:0, streak:1},   // 中
   {mp:1.2,  refl:0, smoke:90,  ped:0.4,  mips:4, msaa:false, ao:0, streak:0},   // 低
@@ -2334,7 +2334,8 @@ function updPerf(rawDt){
   QUAL.hist.push(avg); if(QUAL.hist.length>3) QUAL.hist.shift();
   if(QUAL.hist.length<3) return;
   const m=(QUAL.hist[0]+QUAL.hist[1]+QUAL.hist[2])/3;
-  if(m>25 && QUAL.level<QLV.length-1){ QUAL.downT=now; applyLevel(QUAL.level+(m>60?2:1)); }   // 極端に重ければ2段落とす
+  const slowMs=Math.max(25, fpsCap>0?1000/fpsCap*1.35:0);   // フレーム上限（30/60）の時はその間隔を基準に
+  if(m>slowMs && QUAL.level<QLV.length-1){ QUAL.downT=now; applyLevel(QUAL.level+(m>slowMs*2.4?2:1)); }   // 極端に重ければ2段落とす
   else if(QUAL.level>0 && m<=base*1.2+1.0 && now-QUAL.downT>12000){ applyLevel(QUAL.level-1); QUAL.settleUntil=now+6000; }
 }
 
@@ -2613,8 +2614,9 @@ function resizePost(){
   const nm=POST.mipsN||5;
   for(let i=0;i<nm;i++){ mw=Math.max(1,mw>>1); mh=Math.max(1,mh>>1); POST.mips.push(mkRT(mw,mh,false)); }
   for(let i=0;i<nm-1;i++) POST.ups.push(mkRT(POST.mips[i].width,POST.mips[i].height,false));
-  if(POST.aoOn){                               // SSAO は半分の解像度で計算する
-    const aw=Math.max(1,w>>1), ah=Math.max(1,h>>1);
+  if(POST.aoOn){                               // SSAO は半分の解像度で計算する（最高画質ではフル解像度）
+    const full=QLV[POST.level]&&QLV[POST.level].ao>=2;
+    const aw=full?w:Math.max(1,w>>1), ah=full?h:Math.max(1,h>>1);
     POST.ao.w=aw; POST.ao.h=ah;
     POST.ao.depth=mkRT8(aw,ah,true); POST.ao.rt=mkRT8(aw,ah,false); POST.ao.blur=mkRT8(aw,ah,false);
   }
