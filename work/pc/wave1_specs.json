@@ -1,0 +1,252 @@
+{
+ "ENV-01": {
+  "id": "ENV-01",
+  "title": "歩道設備レイヤー STF：ガードレール・車止め・ゴミ箱・標識・バス停・植栽・駐輪自転車（InstancedMesh）",
+  "category": "city",
+  "description": "現状の歩道は buildRoad のキャンバス 1 枚（#191d23 の帯）だけで、車道との境に立体物が何も無い。LAN（赤提灯）・SIG（信号）・TRF（車）は InstancedMesh で置かれているが、歩道の縁に必ずある白いガードレール、車止めポール、歩道の案内標識、バス停、ゴミ箱、歩道に溢れる駐輪自転車が一切無く、街路レベル（視点 y<15m）で見ると「地面に建物が直接立っている」玩具感が残る。M5 の GPU 余力はあるので、種類ごとに 1 つの InstancedMesh（計 7 ドローコール）で数千個を置き、爆風で DEB 破片に変換して飛ばす。視点を下げて街を歩くように遊ぶときの説得力が一段上がる。",
+  "implementation": "(1) LAN/SIG と同じ流儀で `const STF={kinds:{}, list:[], dirty:false}` を `const LAN={` の直前に追加。`initStf()` を `  initLanterns();\\n  initSignals();` の直後で呼び、BoxGeometry を合成した 7 種のジオメトリ（rail: 幅2.0×高0.8 の横桟2本＋支柱、bollard: φ0.15×0.9 の角柱、bin: 0.5×0.9×0.5 の箱＋上蓋、sign: 0.08×3.2 の柱＋0.6×0.6 の板、bus: 0.1×3.0 柱＋0.5×0.8 の板＋ベンチ、planter: 1.2×0.5×0.5 の箱＋上面 0.1 の緑、bike: 1.7×0.9 の 2 枚の薄い輪＋フレーム）を `setupLitMaterial` した MeshBasicMaterial(vertexColors) で `new THREE.InstancedMesh(g,mat,MAX)`（MAX は rail 2400 / bollard 800 / bin 300 / sign 300 / bus 60 / planter 400 / bike 900）。instanceColor は既存の規約どおり通常色（標識の反射板は 4.x の「強い発光の印」、バス停の行灯は 27 相当）。(2) `buildStf()` を `  buildLanterns();\\n  buildSignals();\\n  } finally { Math.random=_rnd; }` の buildSignals の直後に追加。XL/XW/ZL/ZW を走査し、幅 ≥20 の通りの縁（`XL[i]±(XW[i]/2+0.4)`）に rail を 2.0m ピッチで連続配置（交差点の ±(ZW/2+6) と横断歩道の前は空ける）、幅 <20 の通りには bollard を 3m ピッチ。bin と sign は街区の角（`XL[i]+XW[i]/2+1.5, ZL[j]+ZW[j]/2+1.5`）、bus は幅 ≥20 の通りの中間点に片側ずつ、planter は歩道幅の広い渋谷・西新宿のみ 8m ピッチ、bike は `bldAt(x,1,z)` が null の歩道上で建物の壁から 1.0m に 0.6m ピッチで 3〜9 台の列（MAPID 1 の駅前区画と MAPID 0 の全域に高密度）。各要素は `STF.list.push({k:kind,x,z,rot,col,dead:false})`。(3) `updStf(dt)` を `updTraffic(dt); updPeds(dt); updLanterns(dt); updSignals(dt);` の末尾に追加し、`STF.dirty` の時だけ updLanterns と同じ手順で行列と色を詰め直す（毎フレームの再計算はしない）。(4) 破壊：`pedsBlast(x,z,R*1.0); lanternsBlast(x,z,R);` の直後に `stfBlast(x,y,z,R*1.1)` を追加。半径内の要素を dead にし、1 個につき `spawnDebris(q.x,0.8,q.z,{n:'金属パネル',r,g,b,emis:0},kick)` を rail は 2 個・bike は 3 個（`const M={n:'車体',…}; for(let i=0;i<8;i++) spawnDebris(` の wreckCar の流儀）。metal 名にしておくと spawnDebris が細長い金属片を選ぶ。核（SRCMUL=0）では破片を出さず消すだけ。(5) resetWorld の `SIGNS.length=0; HOT.length=0; CGAI=null; PED.list.length=0; LAN.list.length=0;` に `STF.list.length=0;` を追加。QLV の低画質（level≥3）では bike と planter を半分に間引く（`QUAL.pedK` と同じく密度係数を持つ）。",
+  "anchors": [
+   "const LAN={",
+   "  initLanterns();\n  initSignals();",
+   "  buildLanterns();\n  buildSignals();\n  } finally { Math.random=_rnd; }",
+   "updTraffic(dt); updPeds(dt); updLanterns(dt); updSignals(dt);",
+   "pedsBlast(x,z,R*1.0); lanternsBlast(x,z,R);",
+   "function lanternsBlast(x,z,r){",
+   "SIGNS.length=0; HOT.length=0; CGAI=null; PED.list.length=0; LAN.list.length=0;",
+   "  const M={n:'車体',r:c.col[0],g:c.col[1],b:c.col[2],emis:0};\n  for(let i=0;i<8;i++) spawnDebris(x+rf(-1.5,1.5),1.2,z+rf(-1.5,1.5),M,.9);"
+  ],
+  "est_lines": 260,
+  "perf_cost": "小。7 ドローコール固定、インスタンス合計 ~5000 個の箱（三角形 ~20 万）。M5 の 5.9MP でも頂点負荷は無視できる。行列の書き直しは dirty 時のみで、通常フレームは 0。stfBlast は爆発 1 回につき list 走査 O(5000) で 0.1ms 未満。",
+  "impact": 9,
+  "risk": "中。歩道上の配置が PED（歩行者）や PARKED（駐車車両）と重なる可能性があるので、bike/bus は `bldAt` と PARKED の距離で避ける。WET の平面反射には InstancedMesh も映るので問題なし。検証は `__tt.genCity(0)` 後に `STF.list.length` と `STF.kinds.rail.count` を見る＋スクリーンショットで目視。"
+ },
+ "ENV-02": {
+  "id": "ENV-02",
+  "title": "幹線道路の街灯（渋谷・西新宿には街灯が 1 本も無い）",
+  "category": "lighting",
+  "description": "`lampPos.push(fx,26,fz)` は mkPole の中にしか無く、mkPole は MAPID 0 と 2 の細い通りにしか建たない。つまり渋谷は街灯ゼロ、西新宿の中央通り（幅 40m）にも街灯が無く、buildLamps の光点・buildGlowFloor の路面の光溜まり・buildLightMap の街灯寄与が全て欠落している。幹線道路に実物どおりのアーム式街灯（高さ 10m、片持ちアームの先に灯具）を InstancedMesh で 30m ピッチに立て、lampPos に登録することで既存の 4 つの光の仕組み（光点・路面の光溜まり・光の地図・EMP／変圧器での消灯）がそのまま効く。夜の幹線が「光の列」になり、遠景の奥行きの手がかりが増える。",
+  "implementation": "(1) `const SLP={pole:null, arm:null, head:null, list:[]}` を追加。`initSignals()` の `  SIG.pole=mk(box(.22,5.6,.22,2.8),160);` と同じ `mk` ヘルパの流儀で、`initStreetLamps()` を `  initLanterns();\\n  initSignals();` の直後に呼び、pole=box(.26,10,.26,5)、arm=box(2.4,.16,.16,9.9)（根元から外へ）、head=box(.9,.22,.36,9.95) を各 MAX 400 で作る。head の instanceColor は `4.98,4.86,4.62`（強い発光の印、LAN の白提灯と同じ規約）。(2) `buildStreetLamps()` を `  buildLanterns();\\n  buildSignals();` の buildLanterns の直前に追加（buildLamps は genCity で buildGrid の直後に走るため、lampPos への push は genCity の順序上 buildLamps より前に必要 → 実際には `buildGrid();\\n  buildLamps();` の直前に挿す）。幅 ≥20 の通り（`XW[i]>=20` / `ZW[j]>=20`）の両側 `XL[i]±(XW[i]/2+0.6)` に z=CITY.z0+15 から 30m ピッチ（交差点 ±12m は飛ばす、千鳥配置）。各灯で `lampPos.push(x, 10.2, z)`（既存の電柱街灯は y=26 だが、これは光点の見かけの高さなので 10.2 で良い。buildLightMap は `Math.min(lampPos[i+1],9)` で丸めるので整合）。渋谷のスクランブル周辺と中央通りは街灯色を昼白色（head 色 4.86,4.95,5.0）、歌舞伎町の靖国通りは電球色。(3) 消灯との整合：`killLampsNear(x,z,rad)` と `empBlackout(` は lampObj の color 配列を 0 にするだけなので、`updStreetLamps(dt)` を 0.25 秒おきに回し、`lampObj.geometry.attributes.color` の該当インデックス（lampPos の並び順と SLP.list の順を一致させておく）が 0 なら head の instanceColor を 0.12 に落として needsUpdate（灯具が消えて見える）。(4) 爆風：`pedsBlast(x,z,R*1.0); lanternsBlast(x,z,R);` の直後に `streetLampsBlast(x,z,R)` を追加し、R 内の灯柱を dead → 行列を倒した姿勢（根元で 80° 回転）に書き換えて `killLampsNear(x,z,R)` を呼ぶ（既に呼ばれていれば不要）。倒れた柱は `spawnDebris(...,{n:'鉄骨',…})` を 2 個出す。(5) resetWorld の `lampPos=[]` は既存。`SLP.list.length=0` を `SIGNS.length=0; HOT.length=0; …` の行に足す。",
+  "anchors": [
+   "lampPos.push(fx,26,fz);",
+   "function buildLamps(){",
+   "  for(let i=0;i<lampPos.length;i+=3) add(lampPos[i],lampPos[i+2],30,.55,.44,.26);",
+   "  for(let i=0;i<lampPos.length;i+=3) add(lampPos[i],Math.min(lampPos[i+1],9),lampPos[i+2],1.0,.86,.62,5.0);",
+   "function killLampsNear(x,z,rad){",
+   "  SIG.pole=mk(box(.22,5.6,.22,2.8),160);",
+   "function empBlackout(",
+   "  buildLanterns();\n  buildSignals();\n  } finally { Math.random=_rnd; }"
+  ],
+  "est_lines": 150,
+  "perf_cost": "無視できる。3 ドローコール、インスタンス ≤400×3。lampPos が増えると buildWires の O(n²) ペア走査が増えるので、`d>150||d<20` の前に「アーム街灯どうしは結線しない」フラグ（lampPos と並行の Uint8Array）を見る必要がある。glowFloor の円板が +数百枚増えるが加算合成の板 1 メッシュで問題ない。",
+  "impact": 8,
+  "risk": "中。buildWires が lampPos を電柱として扱うため、街灯を除外しないと幹線に電線が張られる（上記フラグで回避）。buildGlowFloor の光溜まり半径 30 は幹線街灯には大きすぎる可能性があり、種別で 18 に下げる調整が要る。"
+ },
+ "ENV-05": {
+  "id": "ENV-05",
+  "title": "屋上の造り込み：室外機群・架台つき給水塔・フェンス・太陽光パネル・ダクト・衛星アンテナ・広告塔の照明バー",
+  "category": "city",
+  "description": "mkBuilding の屋上は、パラペット（18 の 1 列）・2×2 塔屋・2×2 給水タンク・単発の室外機 1〜5 個・1 列アンテナだけで、俯瞰（T キー）や高い視点から見下ろすと面積の大半が素のコンクリ板。実際の雑居ビルの屋上は室外機が列で 10〜20 台並び、金網フェンス、ダクト、太陽光パネル、BS アンテナ、広告塔を下から照らす投光器バーで埋まっている。これは全てボクセルなので、崩落時に塊になって落ちる・屋上から飛ぶという破壊の見せ場が自動で増える（屋上の小物が塊になって転がり落ちるのは既存の spawnChunk の挙動）。",
+  "implementation": "`  /* ── 屋上 ── */` 以降を拡張（apart/zakkyo/shop/office が対象。tower は mkMegaTower の `roofGear(` が担当）。(1) 室外機群：`    // 室外機\\n    for(let k=0;k<RI(1,5);k++) set(RI(rX0,rX1),H+1,RI(rZ0,rZ1),20);` を「列」に置換：屋上の一辺に沿って 2 マス間隔で 1×1×1 の 20 を 4〜12 台、各台の上に 25（金属パネル）1 マスで「ファンの覆い」。列の背後に 1 列の 20 を這わせて配管に。(2) 給水塔：`    // 給水タンク（脚付き）` の 2×2 を、脚 5 を 4 本 2 段（H+1,H+2）＋ 3×3×2 の 32（給水塔素材：water:1 で壊すと放水）に変更。既存の 32 は MATS にあるが mkBuilding では未使用なので、壊した時の放水演出がここで初めて効く。(3) フェンス：パラペットの内側 1 マスに `set(x,H+2,z,18)` を 2 マス間隔の支柱＋ H+3 の笠木で金網風（RAIL と同じ要領、apart と office のみ）。(4) 太陽光：office/apart の 35% で屋上の空いている矩形（塔屋と列を避けて走査）に 2（暗い窓＝ガラス、M_CLS 4 で空を映す）を H+1 に 2×3 の板で 2〜4 枚、各板の南側を 1 段高く（傾斜の代わり）。(5) 衛星アンテナ：22（白タイル）1 マス＋5 の腕 1 マスを 45% で。(6) 照明バー：広告塔（`    // 広告塔の脇に赤い航空障害灯` の直前）の前面に 1 マス離して 27（灯り暖白）を 2 マス間隔で並べ、buildLightMap の照り返しで看板面が下から照らされる。(7) ダクト：塔屋から屋上端へ 20 を 1 列（曲がりを 1 回）。(8) 航空障害灯 19 は現状のまま。",
+  "anchors": [
+   "  /* ── 屋上 ── */",
+   "    // 室外機\n    for(let k=0;k<RI(1,5);k++) set(RI(rX0,rX1),H+1,RI(rZ0,rZ1),20);",
+   "    // 給水タンク（脚付き）",
+   "    // アンテナ",
+   "    // 広告塔の脇に赤い航空障害灯",
+   "[2,37].forEach(i=>M_CLS[i]=4);",
+   "function roofGear("
+  ],
+  "est_lines": 120,
+  "perf_cost": "小。1 棟あたり +40〜90 ボクセル、greedy で面はまとまるので三角形は +150 程度×200 棟 = +3 万三角形。屋上は SECH 区画の最上段にあるので、破壊時の再メッシュ範囲は変わらない。",
+  "impact": 7,
+  "risk": "低。屋上の高さは HH=H+9 の余白内（最大 H+8 まで使えるので給水塔 H+4、広告塔 H+3+th≤H+11 は既に溢れる場合があり `set` が範囲外を捨てる仕様で安全）。32（water）が増えると壊した時の `fx` 粒子が増えるが FXCAP で頭打ち。"
+ },
+ "ENV-11": {
+  "id": "ENV-11",
+  "title": "小物の破壊整合：塊の落下接触で設備が倒れる・火災で焦げる・EMP と変圧器で街灯が落ちる・核で蒸発",
+  "category": "vfx",
+  "description": "ENV-01/02/09 で InstancedMesh の小物が増えると「爆風だけ反応し、落ちてくる塊や火災には無反応」な物体が街に数千個できる。既存の車（TRF）は `trfChk` で 1/15 秒ごとに chunks との接触を見て wreckCar し、提灯は支えのビルが崩れると落ちる。同じ水準を小物にも与える共通パイプライン `stfHit(q, src)` を用意し、(a) chunk 接触、(b) burnAt の半径で焦げ色＋ゴミ袋は燃える、(c) EMP・変圧器 zap で街灯と看板ポールが消える、(d) 核（SRCMUL=0）では破片を出さず消える、(e) 倒れた設備は score に 120×combo（車の 2500 より小さく、集計は 'wpn'/'domino' の src で tallyKill と同じ分岐）を加える。ユーザーが見るのは「ビルが倒れて路上の全てを薙ぎ払う」一体感。",
+  "implementation": "(1) `function wreckCar(c,src){` の直前に `function stfHit(q,src)`：q.dead=true、STF.dirty=true、種類別の破片（rail: 鉄骨 2 個 / bike: 車体色 3 個 / bin: コンクリ 1 個＋黒煙 `vfxSmoke` 小 / planter: 樹木 3 個＋幹 1 個 / bag: 黒い小片 4 個 / crate: 青い小片 5 個）、`Snd.mat(5,…)` の金属音、`if((SRCMUL[src]||0)>0) S.score+=Math.round(120*S.combo)`。核なら破片を出さない。(2) 接触：`  if(trfChk>=1/15){ trfChk=0; for(const c of C){ if(c.dead) continue;` と同じブロック内で、`chunks` の各 q について `q.p[1]<8` のとき、`STF.list` を空間格子（build 時に 16m セルの Map に登録）で引き、`|q.p[0]-s.x|<6 && |q.p[2]-s.z|<6` の未 dead 要素を stfHit(s, q.src==='nuke'?'nuke':'domino')。(3) 火災：`function burnAt(wx,wy,wz,rad,pow){` の末尾で半径内の STF を走査し、planter/bag/box は `stfHit(s,'fire')`、rail/bollard/sign は instanceColor を 0.35 倍にして焦げ色（dirty）。(4) 消灯：`function killLampsNear(x,z,rad){` の `hit=true` の後で、半径内の ENV-02 の灯具色と ENV-04 の看板ポールは発光素材のボクセルなので、後者は `LITU.uEmHi` 経由ではなく既存の `empBlackout` の②以降（建物の発光ボクセルを 2 に置換する処理 `b.vox[i]=2; b.hp[i]=MATS[2].hp;`）に任せる＝追加作業なし。ENV-02 の灯具は updStreetLamps が lampObj の色を見るので自動。(5) 倒れた表現：rail/sign/pole は dead 直後 0.4 秒だけ行列を根元回転で倒す補間（updStf で `q.fall+=dt` を見て回転角を 0→80° に）し、その後 count から外す。",
+  "anchors": [
+   "function wreckCar(c,src){",
+   "  if(trfChk>=1/15){ trfChk=0; for(const c of C){ if(c.dead) continue;",
+   "function burnAt(wx,wy,wz,rad,pow){",
+   "function killLampsNear(x,z,rad){",
+   "function empBlackout(",
+   "const SRCMUL ={wpn:1,   collapse:1.5, fire:1.5, chain:2,  domino:3,   nuke:0};"
+  ],
+  "est_lines": 120,
+  "perf_cost": "小。接触判定は 1/15 秒ごとに chunks（≤160）× 近傍セルの小物（平均 10）＝ ~1600 比較。burnAt は既存の呼び出し頻度（延焼のたび）で半径内の小物走査 O(数十)。倒れる補間は dead 直後の数個だけ。",
+  "impact": 7,
+  "risk": "中。ENV-01 に依存。chunk の `q.p` と `q.src` のフィールド名は updTraffic の既存コードで使われている（確認済み）。score の加算は SRCMUL の分岐に乗せないと「核で 0 点」の仕様（suite の zero-score テスト）を壊すので必ず `(SRCMUL[src]||0)>0` を通す。"
+ },
+ "L01": {
+  "id": "L01",
+  "title": "点光源の拡張：NLIT 16→32、有効灯数で早期打ち切り、スポット光（向き・円錐）対応",
+  "category": "lighting",
+  "description": "現状は点光源が 16 灯固定で、全画素が常に 16 回ループする（灯が 3 つしか無くても 16 回）。しかも全灯が全方向に光るので、ヘッドライトやサーチライトのような「向きのある光」が表現できない。NLIT を 32 に上げ、実際に使っている灯数 uNL で break する（灯が少ない場面はむしろ今より軽い）。さらに uLD[NLIT]（向き xyz と円錐の cos）を追加してスポット光を表現できるようにする。L02（街灯）、L06（ヘッドライト）、L10（サーチライト）の土台。M5 では 32 灯でも 1 画素あたり数十 ALU の増分で余裕。",
+  "implementation": "(1) 生成物の `const NLIT=16;` → `const NLIT=32;`。LITU に `uNL:{value:0}` と `uLD:{value:Array.from({length:NLIT},()=>new THREE.Vector4(0,0,0,-2))}` を追加（w<=-1 で全方向光）。(2) LIT_PRE 先頭の `uniform vec4 uLP[NLIT]; uniform vec4 uLC[NLIT];` に `uniform vec4 uLD[NLIT]; uniform float uNL;` を足す。(3) LIT_MAIN のループを `for(int i=0;i<NLIT;i++){ if(float(i)>=uNL) break; vec3 dv=uLP[i].xyz-vWPos; float dd=length(dv); float at=clamp(1.0-dd/uLP[i].w,0.0,1.0); if(at<=0.0) continue; vec3 ld=dv/max(dd,0.001); float cone=uLD[i].w<=-1.0?1.0:smoothstep(uLD[i].w,uLD[i].w+0.12,dot(-ld,uLD[i].xyz)); float nl=max(dot(ttN,ld),0.0)*0.8+0.2; ttL+=uLC[i].rgb*(uLC[i].a*at*at*nl*cone); }` に差し替え。SMOKE_FRAG の同形ループ（`for(int i=0;i<NLIT;i++){ vec3 dv=uLP[i].xyz-vWp; ...`）にも `uLD`/`uNL` の uniform 宣言とループの break・cone を同様に入れ、initVFX の煙材質 uniforms に `uLD:LITU.uLD,uNL:LITU.uNL` を追加。(4) updLights の `cand.sort` 直後、uniform 書き込みループで `const D=LITU.uLD.value;` を取り、`L.d` があれば `D[i].set(L.d[0],L.d[1],L.d[2],L.cone)`、無ければ `D[i].w=-2`。最後に `LITU.uNL.value=Math.min(NLIT,cand.length)`。addLight に省略可能引数 `dir,cone` を足して `L.d=dir; L.cone=cone`。(5) `mat.customProgramCacheKey=()=>'tt_lit_23';` → 'tt_lit_24'（シェーダ変更時は必ず更新）。(6) 画質ごとの上限：QLV の各行に `nlit:32/24/16/8/8` を足し、applyLevel の `QUAL.smokeMax=Q.smoke; VFX_SMAX=Q.smoke;` の隣で `LITU.uNLMax=Q.nlit`、updLights で `Math.min(LITU.uNLMax||NLIT, cand.length)`。renderReflection の flip は P[i].y を反転するだけで向きは未処理なので、flip 内で `uLD[i].y=-uLD[i].y` も反転する。",
+  "anchors": [
+   "const NLIT=16;",
+   "    for(int i=0;i<NLIT;i++){\n      vec3 dv=uLP[i].xyz-vWPos;",
+   "  for(int i=0;i<NLIT;i++){ vec3 dv=uLP[i].xyz-vWp; float d=length(dv); float at=clamp(1.0-d/uLP[i].w,0.0,1.0); L+=uLC[i].rgb*(uLC[i].a*at*at*1.3); }",
+   "  cand.sort((a,b)=>b.s-a.s);\n  const P=LITU.uLP.value, C=LITU.uLC.value;",
+   "  uLP:{value:Array.from({length:NLIT},()=>new THREE.Vector4(0,-1e4,0,1))},",
+   "  mat.customProgramCacheKey=()=>'tt_lit_23';",
+   "  QUAL.smokeMax=Q.smoke; VFX_SMAX=Q.smoke;"
+  ],
+  "est_lines": 60,
+  "perf_cost": "小。break により灯が少ない場面は現状より軽く、32 灯フル稼働時でも 1 画素あたり +16 回の短いループ（M5 のネイティブ 5.9MP でも 1ms 未満の見積もり）。uniform 転送は 32×3 vec4 で無視できる。",
+  "impact": 8,
+  "risk": "中。LIT_PRE/LIT_MAIN/SMOKE_FRAG の 3 箇所を同時に変えるのでコンパイルエラーに注意（probe_pc.mjs で `__tt.POST().on` と `renderer.info.programs` を確認）。反射パスの flip と組み合わせる箇所も要確認。"
+ },
+ "L02": {
+  "id": "L02",
+  "title": "街灯を本物の点光源にし、渋谷・西新宿にも街路灯を立てる",
+  "category": "lighting",
+  "description": "現状の街灯は (a) 電柱の上の発光ボクセル、(b) 路面の加算スプライト glowFloor、(c) 全体に一様な `uStreet` の指数減衰、で表現されており、壁・車・歩行者が「その街灯に」照らされることはない。しかも電柱は歌舞伎町と西新宿にしか無く（placeUtils の MAPID 0/2 分岐）、渋谷は lampPos が空＝街灯ゼロ。カメラ近傍の街灯 8 灯を常時 LITQ 候補に入れれば、光の下を通る車や歩行者、電柱脇の壁に本物の明暗が生まれる。幹線道路に専用の街路灯（ナトリウム橙／西新宿は LED 白）を 28m 間隔で立て、lampPos に登録することで光の地図・glowFloor・停電（killLampsNear）も自動で効く。",
+  "implementation": "(1) 新関数 `placeStreetLamps()` を placeUtils の直後に呼ぶ（`function placeUtils(){` の前に定義、genCity では `placeUtils();` の 2 箇所に続けて呼ぶか、`buildLamps();\\n  buildHalos();` の直前で呼ぶ）。XL/XW, ZL/ZW のうち幅 20m 以上の通りに沿い、歩道側（中心±(幅/2+1.5)）に 28m 間隔・左右交互で lampPos.push(x, 9.5, z)。既存の電柱 lampPos（y=26）との距離が 12m 未満なら飛ばす。柱の見た目は InstancedMesh（BoxGeometry 0.3×9×0.3 ＋腕 2.2m、setupLitMaterial 済みの MeshBasicMaterial、色 .3,.3,.32）と灯具（0.5×0.2×1.2、instanceColor に強発光の印 4+色）。LAMPS プールは initScene で `skyMesh=makeSky(); scene.add(skyMesh);` の後に作り、genCity ごとに count を書き換える（resetWorld で lampPos=[] になるので自動で整合）。(2) updLights：`const nf=Math.min(fires.length,40);` の直前に、0.25 秒ごとに lampPos を走査して camera から近い順 8 灯（150m 以内）を `_lampLs` に選び、候補に push。`{x,y:lampPos[i+1]-0.6,z, r:36, c:MAPID===2?[.85,.9,1]:[1,.78,.5], i:0.75*cityPower, tau:1, s:0}`。消えた灯（lampObj の color 属性が 0,0,0）と blackout 中は除外。高さ 26 の電柱灯は r:44。(3) buildGlowFloor の `add(lampPos[i],lampPos[i+2],30,.55,.44,.26)` は新灯には r=18・色を上記に合わせる（y で判別）。(4) 任意：`uStreet:{value:0.40}` を 0.32 に下げ、一様光を少し弱めて点光源の陰影を際立たせる。",
+  "anchors": [
+   "  const nf=Math.min(fires.length,40);",
+   "  lampPos.push(fx,26,fz);",
+   "function placeUtils(){",
+   "  if(MAPID===0 || MAPID===2){\n    for(let i=0;i<XL.length;i++) for(let j=0;j<ZL.length-1;j++){\n      if(Math.random()<.55) continue;",
+   "  buildLamps();\n  buildHalos();",
+   "  for(let i=0;i<lampPos.length;i+=3) add(lampPos[i],lampPos[i+2],30,.55,.44,.26);",
+   "  uStreet:{value:0.40}, uStreetFall:{value:1/19},",
+   "  skyMesh=makeSky(); scene.add(skyMesh);"
+  ],
+  "est_lines": 90,
+  "perf_cost": "小。点光源 8 灯分のシェーダコストは L01 の枠内、CPU は 0.25 秒ごとの lampPos 走査（数百件）のみ。柱の InstancedMesh は 1 ドローコール。",
+  "impact": 8,
+  "risk": "低〜中。L01 がある前提で 16 灯のうち 8 灯を街灯が占めるため、爆発・火災の光と枠を奪い合う → 街灯は `s` スコアを 0.6 倍にして爆発優先にする。歩行者の配置（buildPeds）が新しい柱と重ならないかは見た目だけの問題。"
+ },
+ "L03": {
+  "id": "L03",
+  "title": "窓明かりの時間変化：消灯／点灯の遷移、テレビの青い明滅、切れかけの蛍光灯",
+  "category": "lighting",
+  "description": "ttRoom は部屋ごとの乱数で壁色・家具・明るさを変えているが時間変化が一切無く、何分眺めても一枚絵に見える。実際の夜景は数十秒に一度どこかの窓が消え、どこかが点く。部屋ごとに「35〜95 秒周期のスケジュール」を持たせ、約 1 割の部屋がその周期の一部で暗くなる（1.5 秒のフェード）。さらに 8% の部屋はテレビの青白いちらつきが奥の壁に映り、1% は蛍光灯が不規則に明滅する。再生成で位相が変わるよう、既存の部屋乱数 r1/r2/r3 を使う。",
+  "implementation": "LIT_PRE の ttRoom 内、`vec3 room=col*sh*(0.72+0.60*r2)*mix(1.0,0.05,dark);` の直前に追加：\n```\nfloat per=35.0+60.0*r2; float slot=floor(uTime/per+r1*7.0); float ph=fract(uTime/per+r1*7.0);\nfloat offP=step(0.86,ttH3(vec3(rid,slot*0.37+sd)));           // この周期は消灯する部屋\nfloat edge=smoothstep(0.0,0.03,ph)*smoothstep(1.0,0.97,ph);    // 周期の端で 1.5 秒ほどフェード\nfloat offK=offP*edge;\nfloat tv=step(0.62,r3)*step(r3,0.70);                           // テレビのある部屋\nvec3 tvc=vec3(0.45,0.60,1.0)*(0.55+0.45*ttBN(vec2(uTime*3.3+r1*40.0,uTime*0.7)))*tv;\nfloat flk=(r2>0.60&&ttH3(vec3(rid,sd+9.0))>0.985)?step(0.25,fract(sin(floor(uTime*11.0)+r1*77.0)*43758.5453)):1.0;\ndark=max(dark,offK); \n```\nそして `vec3 room=col*sh*(0.72+0.60*r2)*mix(1.0,0.05,dark);` を `vec3 room=(col*sh*(0.72+0.60*r2)+tvc*(t==tZ?1.2:0.35))*flk*mix(1.0,0.05,dark);` に置換。`dark` は引数なので関数内で再代入してよい（in パラメータ）。消灯した部屋では LIT_MAIN 側の `outgoingLight=mix(room,ttSky(...),fr)*...*uEmLo` のまま暗い室内＋空の映り込みになり、消灯窓（class 4）と同じ見え方になる。`mat.customProgramCacheKey` を更新。",
+  "anchors": [
+   "  vec3 room=col*sh*(0.72+0.60*r2)*mix(1.0,0.05,dark);",
+   "  float sd=dot(N,vec3(1.0,2.0,3.0));",
+   "    vec3 room=ttRoom(vLPos,ttN,ttRd,0.0)*ttC0;",
+   "  mat.customProgramCacheKey=()=>'tt_lit_23';"
+  ],
+  "est_lines": 25,
+  "perf_cost": "無視できる（灯った窓の画素でのみ数個のハッシュ評価が増える）。",
+  "impact": 7,
+  "risk": "低。光の地図（buildLightMap）は静的なので消灯窓の照り返しは残るが、1 割以下なら視認できない。反射パス（uFlip）でも uTime は同じなので整合する。"
+ },
+ "L04": {
+  "id": "L04",
+  "title": "ネオン管・灯りのちらつきと故障：管ごとの位相ゆらぎ、1 割の不良管、停電からの順次復帰",
+  "category": "lighting",
+  "description": "看板（ttBoard）には「切れかけの蛍光灯」があるが、ネオン管そのもの（素材 7/8/16/17）と灯り（27/28）は `uEmHi`/`uEmLo` を掛けるだけで完全に一定。実物のネオンは管ごとに微妙な輝度の揺れがあり、歌舞伎町では必ず数本が死にかけで明滅している。4 ボクセル単位の「管」ごとにハッシュで位相を持たせ、8〜12Hz の微小ゆらぎ（±5%）と、10% の管に不規則な明滅（0.15〜1.0）を入れる。壊れかけが目に入ることで街が「生きている」感じになる。",
+  "implementation": "LIT_MAIN の `outgoingLight*=(ttCls>1.5?uEmHi:uEmLo);` の直後に追加：\n```\nif(ttCls>1.5&&ttCls<2.5){\n  vec3 tq=floor(vLPos/(1.4*4.0)); float hq=ttH3(tq+vec3(0.37));\n  float fl=0.95+0.05*sin(uTime*(8.0+hq*5.0)+hq*6.2832);\n  if(hq>0.90){ float g=fract(sin(floor(uTime*9.0+hq*70.0)*12.9898)*43758.5453); fl*=mix(0.12,1.0,step(0.42,g)); }   // 不良管\n  outgoingLight*=fl;\n}\n```\n看板の面（ttBoard）は後で上書きされるので影響しない。航空障害灯の分岐より前に置くと障害灯にも揺れが乗るので、必ず `uEmHi` 行の直後・障害灯 `if` の前に入れ、障害灯の分岐では `fl` を使わない。`vLPos` は建物ローカル座標なので倒壊・塊化しても管の割り当てが変わらない。停電復帰（任意）：`LITU.uSignPow.value=blackout?0:1;` の行を `LITU.uSignPow.value+=((blackout?0:1)-LITU.uSignPow.value)*Math.min(1,dt*2.5);` にし、ttBoard/ttSign は既に uSignPow を掛けているため「じわっと戻る」。ただし現状 blackout は genCity まで戻らないので復帰は将来の EMP 解除用。`customProgramCacheKey` 更新。",
+  "anchors": [
+   "    outgoingLight*=(ttCls>1.5?uEmHi:uEmLo);                 // ネオンは強く、街灯は控えめに",
+   "    if(ttCls>1.5&&ttCls<2.5&&abs(vWPos.y)>50.0&&abs(ttC0.g-0.30)<0.04&&abs(ttC0.b-0.26)<0.04){",
+   "  LITU.uSignPow.value=blackout?0:1;                        // 停電で消える",
+   "  if(h6>0.97) lvl*=0.25+0.75*step(0.35,fract(sin(floor(uTime*9.0+h*50.0))*43758.5453));   // 切れかけの蛍光灯"
+  ],
+  "est_lines": 15,
+  "perf_cost": "無視できる（発光画素のみ、ハッシュ 1 回と sin 1 回）。",
+  "impact": 6,
+  "risk": "低。ブルームと組み合わさると不良管の明滅が目立ちすぎる可能性 → 比率 0.90 と下限 0.12 を見ながら調整。"
+ },
+ "L05": {
+  "id": "L05",
+  "title": "航空障害灯の現実化：ビルごとに位相をずらし、150m 超は白色閃光、屋上を赤く照らす点光源",
+  "category": "lighting",
+  "description": "現状は街じゅうの障害灯が `fract(uTime*0.75)` で完全同期して点滅しており、スクリーンショットでは分からないが動くと「電飾」に見える。実物は塔ごとに非同期で、60〜150m は赤の明滅、150m 超（歌舞伎町タワー・都庁級）は白色のキセノン閃光（約 1.3Hz の鋭いフラッシュ）。さらに障害灯の周りの屋上面が赤く照らされる（これが夜景写真の高層ビル頂部の特徴）。障害灯は素材 19 を高さ 50m 超に置くことで表現されている（mkKabukiTower 等の `set(...,19)`）。",
+  "implementation": "(1) シェーダ：`float fl=fract(uTime*0.75);` を\n```\nvec2 bq=floor(vWPos.xz/44.0); float ph=ttH2(bq);                     // 44m 格子≒ビル単位の位相\nfloat fl=fract(uTime*0.75+ph);\nif(abs(vWPos.y)>150.0){ float s=fract(uTime*1.3+ph); outgoingLight=vec3(1.0,0.97,0.9)*(0.08+7.0*smoothstep(0.0,0.015,s)*smoothstep(0.07,0.025,s))*uEmHi; }\nelse\n```\nに置換（else 以降は既存の `outgoingLight*=0.06+1.9*...` 行がそのまま続く）。(2) JS：genCity の `buildSignals();` の直後に `buildAvl()` を呼び、全 blds を走査して `vox[i]===19 && y*VOX>50` の位置を `AVL=[{x,y,z,ph,white}]` に集める（ph は floor(x/44),floor(z/44) のハッシュを JS 側で同じ式で計算、white は y>150）。(3) updLights：`const nf=Math.min(fires.length,40);` の直前で camera から近い 6 灯を選び、候補に `{x,y:y+1,z, r:white?26:16, c:white?[1,.95,.85]:[1,.12,.06], i:(赤) 0.9*pulse / (白) 2.5*flash, tau:1}` を push。pulse は JS 側で `fl=fract(litT*0.75+ph)` から GLSL と同じ smoothstep で計算（litT は SKYU.uTime と同じ速さで進むので `LITU.uTime.value` を使えば完全一致）。倒壊した建物（b.toppled）の灯は除外。",
+  "anchors": [
+   "      float fl=fract(uTime*0.75);                                // 航空障害灯：街じゅうで同期して点滅する",
+   "    if(ttCls>1.5&&ttCls<2.5&&abs(vWPos.y)>50.0&&abs(ttC0.g-0.30)<0.04&&abs(ttC0.b-0.26)<0.04){",
+   "  buildSignals();\n  } finally { Math.random=_rnd; }",
+   "  const nf=Math.min(fires.length,40);"
+  ],
+  "est_lines": 45,
+  "perf_cost": "無視できる（屋上付近の点光源 6 灯、半径が小さいので届く画素も少ない）。",
+  "impact": 6,
+  "risk": "低。素材 19 は自販機にも使われるが高さ 50m 超の条件で区別できている。位相格子 44m は大きいビルで 2 位相に割れる可能性があるが実害なし。"
+ },
+ "L06": {
+  "id": "L06",
+  "title": "車のヘッドライトが路面と壁を照らす（スポット光）、ブレーキの赤い滲み",
+  "category": "lighting",
+  "description": "走る車は 360 台いてヘッドライトも光っているが、光源としては「光る箱」でしかなく、路面に光の扇が落ちない。夜の東京の路面で最も動きのある光がヘッドライトなので、これが無いと交通が張りぼてに見える。L01 のスポット光を使い、カメラに近い走行車 10 台を円錐光（前方 26m、半頂角 ≒37°、やや下向き）として登録。減速中の車はテールランプの赤い全方向光（半径 6m）を足す。濡れた路面（WET）には反射テクスチャ経由で自動的に映る。",
+  "implementation": "(1) updTraffic の描画ループ `const brake=c.v<c.vmax*.6, prk=!!c.parked;` の直後で、`if(!prk){ const d2=(x-cx)*(x-cx)+(z-cz)*(z-cz); if(d2<140*140) TRF.near.push({c:c,d:d2,x:x,z:z,cs:cs,sn:sn,brake:brake}); }`（cx,cz はループ前に camera.position から取得、TRF.near はループ前に length=0）。ループ後に `TRF.near.sort((a,b)=>a.d-b.d); TRF.near.length=Math.min(10,TRF.near.length);`。(2) updLights：`const nf=Math.min(fires.length,40);` の直前で TRF.near を走査し、前照灯：`{x:x+cs*2.4, y:0.9, z:z-sn*2.4, r:26, c:[1,.95,.82], i:0.85, d:[cs*0.96,-0.28,-sn*0.96], cone:0.80, tau:1}`（carAng の回転に合わせ、車体の +x が進行方向）、ブレーキ中はさらに `{x:x-cs*2.3, y:0.7, z:z+sn*2.3, r:7, c:[1,.1,.05], i:0.5}`。候補オブジェクトは `_fireLs` と同様に再利用配列 `_carLs` に確保して GC を避ける。(3) L01 未適用でも動くよう `cone` が無い場合は前方 6m に置く全方向光（r:16）にフォールバック。",
+  "anchors": [
+   "    const brake=c.v<c.vmax*.6, prk=!!c.parked;",
+   "function updTraffic(dt){",
+   "  const nf=Math.min(fires.length,40);",
+   "const TRF={body:null, cabin:null, lamp:null, cars:[], lanes:[]};"
+  ],
+  "est_lines": 40,
+  "perf_cost": "小。CPU は 360 台の距離計算（既に毎フレーム行列を書いている）に加え 10 件のソート。GPU は L01 の枠内で 10〜14 灯分。",
+  "impact": 8,
+  "risk": "中。点光源枠（NLIT）を爆発・火災・街灯と取り合うので、スコア `s` を距離の近さ優先で計算し、爆発光（i が大きい）が自然に勝つようにする。反射パスでは uLD の y 反転が必要（L01 に記載）。"
+ },
+ "L09": {
+  "id": "L09",
+  "title": "地表の高さ霧と光の霞：看板の光で染まる薄い霞を 0〜25m に敷き、遠い通りが色づいて光る",
+  "category": "lighting",
+  "description": "霧は線形（1100〜3400m）で街の中は完全に澄んでおり、遠景の通りの奥が暗い穴のように見える。実際の繁華街は湿った空気に光が散乱し、通りの奥ほど看板色の霞に沈む（夜景写真の「奥行き」の正体）。高さ依存の指数霧（Quilez の解析式）を建物・路面・煙の各シェーダに足し、霞の色を既存の光の地図（uLM：看板・窓・街灯の色と高さ）で染める。空の地平線側（ttSky と SKY_FRAG）も同じ霞色で整合させる。",
+  "implementation": "(1) LITU に `uHazeK:{value:1.0}` を追加、LIT_PRE の `uniform float uStreet, uStreetFall, uSkyAmb, uEmLo, uEmHi;` に `uHazeK` を足す。(2) LIT_PRE に関数：\n```\nvec3 ttHaze(vec3 col, vec3 wp){\n  if(uHazeK<=0.0) return col;\n  vec3 dv=wp-uCam; float d=length(dv); float k=0.055; float dens=0.0026*uHazeK;\n  float yc=max(uCam.y,0.0), yp=max(wp.y,0.0);\n  float f=abs(yp-yc)<0.5 ? dens*d*exp(-yc*k) : dens*d*(exp(-yc*k)-exp(-yp*k))/(k*(yp-yc));\n  f=1.0-exp(-f);\n  vec3 mid=uCam+dv*0.5; vec4 lm=texture2D(uLM,(mid.xz-uLMo.xy)*uLMo.z);\n  vec3 hc=uHaze*1.6+lm.rgb*(0.9*uLMGain*uSignPow)+uStreetCol*uStreet*0.6;\n  return mix(col,hc,f*0.55);\n}\n```\n(3) LIT_MAIN の末尾 `outgoingLight=ttSign(outgoingLight,vWPos,ttN);` の直後に `outgoingLight=ttHaze(outgoingLight,vWPos);` を追加（発光面にも薄く乗ることで遠くの看板が霞む）。(4) WET_MAIN の先頭ブロック（`{ vec4 lm=texture2D(uLM,...); outgoingLight+=... }`）の後に路面用に同じ式（WET_PRE に uHazeK と uStreet/uStreetCol を足す）。(5) SMOKE_FRAG の `col=mix(col,uFogC,fg);` の後に高さ霧版を簡略で（カメラ中点の LM で染める）。(6) 空：`sky=mix(uHaze,sky,smoothstep(-0.015,0.02,e));` を `sky=mix(uHaze*1.35,sky,smoothstep(-0.015,0.05,e));` にして地平線帯を少し厚く。(7) QLV に `haze:1/1/.7/0/0` を足し applyLevel で `LITU.uHazeK.value=Q.haze`（低画質は OFF）。核の閃光時は霞が白く光るので `hc+=vec3(1.0,0.9,0.8)*uFlash`（SKYU.uFlash を LITU に共有）。cacheKey 更新。",
+  "anchors": [
+   "  outgoingLight=ttSign(outgoingLight,vWPos,ttN);\n}\n`;",
+   "  sky=mix(uHaze,sky,smoothstep(-0.015,0.02,e));                   // 地平線の下は霞（遠景の地面と一致）",
+   "  float fg=clamp((length(vWp-uCamP)-uFogN)/(uFogF-uFogN),0.0,1.0);\n  col=mix(col,uFogC,fg);",
+   "  uStreet:{value:0.40}, uStreetFall:{value:1/19},",
+   "  POST.aoOn=!!Q.ao && aoUser; POST.streakOn=!!Q.streak;",
+   "  mat.customProgramCacheKey=()=>'tt_wet_2';"
+  ],
+  "est_lines": 60,
+  "perf_cost": "小。全画素で exp×2 とテクスチャ 1 回。M5 のネイティブ解像度でも 0.5ms 未満の見積もり。",
+  "impact": 8,
+  "risk": "中。霞が強すぎるとコントラストが落ちて「濁る」ので dens と 0.55 を screenshot で詰める。AO は霞の前の深度を使うので影響なし。反射パスでは uCam.y が flip されないため、flip 中は `uHazeK` を 0.5 倍にして破綻を隠す。"
+ },
+ "L11": {
+  "id": "L11",
+  "title": "遠景の密度：街の外周 350〜1500m にシルエットの街と遠い超高層群を敷く",
+  "category": "city",
+  "description": "CITY の矩形（約 600m 四方）の外は 9000m の真っ平らな地面しか無く、街の端に立つと「舞台の縁」が見える。霧（1100〜3400m）と光のドームが誤魔化しているが、俯瞰（T キー）や端から眺めると密度の落差が露骨。外周リングに約 900 棟の箱ビル（InstancedMesh 1 ドローコール、窓ドットの手続きテクスチャを高さに応じて繰り返す）、方角に合わせた遠い超高層群（歌舞伎町から見た西新宿、渋谷から見た新宿／六本木ヒルズ風）、その障害灯 Points を置く。霧と高さ霧（L09）に溶けつつ地平線を埋め、スカイラインが「東京」になる。",
+  "implementation": "(1) FAR オブジェクト。initScene の `skyMesh=makeSky(); scene.add(skyMesh);` の後で `initFar()`：BoxGeometry(1,1,1).translate(0,.5,0)、instance 属性 aWin（vec2：横・縦の窓繰り返し数）と instanceColor。材質は MeshBasicMaterial({map:farWinTex(), vertexColors:true, fog:true}) に onBeforeCompile で `vUv*aWin` を掛ける小パッチ（`#include <uv_vertex>` の後に `vUv=uv*aWin;`、attribute 宣言を追加）。farWinTex は 64×64 キャンバス：暗い壁色 + 格子 8×8 のうち 28% を暖色／寒色の窓、`wrapS/T=RepeatWrapping`。（2）配置：genCity の `buildSignals();` の直後に `buildFar()`（seed 付き乱数の中で呼ぶため try ブロック内）。方法：半径 350〜1500m の環状にポアソン風に候補を撒き、CITY 矩形＋60m を除外、サイズ w,d=12〜40m、h=15〜70m、距離が遠いほど h を 1.3 倍（地平線を持ち上げる）。マップ別の超高層群：MAPID 0 は方位 (−x,+z) 700〜950m に 9 棟 h150〜240、MAPID 1 は (+x,−z) 1200m に 6 棟、MAPID 2 は周囲 500m に 12 棟 h120〜200。instanceColor は (0.10〜0.16, 0.11〜0.17, 0.14〜0.20)×既存 randTint。(3) 障害灯：高さ 60m 超の遠景棟の頂点を Points（lampMat と同じ PointsMaterial、size 6、色 [1,.1,.05]）にし、updFar(dt) で material.opacity=0.4+0.6*step(0.5,fract(t*0.75)) の明滅。(4) 反射から除外：`const hide=[WET.ground,roadMesh,glowFloor,VFX.smoke,VFX.fire,DEB.mesh];` に FAR.mesh を追加（遠景の反射は wdist で消えているので無駄）。(5) `updCull` には触れない（blds ではない）。初期視点 `const VIEWS=[` の奥に遠景が入ることを screenshot で確認。",
+  "anchors": [
+   "  skyMesh=makeSky(); scene.add(skyMesh);",
+   "  buildSignals();\n  } finally { Math.random=_rnd; }",
+   "  const hide=[WET.ground,roadMesh,glowFloor,VFX.smoke,VFX.fire,DEB.mesh];",
+   "const VIEWS=[",
+   "function updCull(dt){"
+  ],
+  "est_lines": 120,
+  "perf_cost": "小。900 棟 × 12 三角形 = 約 1.1 万三角形・1 ドローコール。遠景なので画素は少なく、AO 深度パスにも 1 回描かれるだけ。",
+  "impact": 8,
+  "risk": "低〜中。aimRay/rayCast は blds しか見ないので遠景には当たらない（弾が貫通する）が、350m 以遠で射程外なら実害はない。核の閃光（uFlash）で遠景も白くなるよう LIT ではなく fog 付き Basic のままでは閃光が乗らない → 任意で `setupLitMaterial` を使う（aM 属性が必要なので geometry に 0 で足す）。"
+ },
+ "L12": {
+  "id": "L12",
+  "title": "SSAO／ブルーム／ストリークの M5 向け再調整：フル解像度 AO・16 サンプル、暖色ストリーク 4 段、粒子を DPR2 用に",
+  "category": "lighting",
+  "description": "ポスト処理は iPhone 基準のパラメータが残っている。(a) SSAO は常に半分解像度・12 サンプル・半径 7 で、ネイティブ 3024×1964 ではボクセルの角の接地影がぼやける。(b) ブルームのしきい値 1.38 は HDR 前提で高めなので看板の「滲み」が弱く、暗い窓明かりはほぼ滲まない。(c) ストリークは stride 1/3/9 の 3 段で画面幅の 1/4 程度しか伸びず、色が青一色で歌舞伎町の暖色ネオンに合わない。(d) 粒子 0.022 は DPR2 では細かすぎて砂っぽい。M5 の余力で最高画質だけ AO をフル解像度・16 サンプル・半径 9・ブラー 6 タップに、ブルームしきい値 1.25、ストリーク 4 段（stride 27 追加）で画面幅へ、色を光源色寄り（tint を (0.95,0.85,0.8) と (0.74,0.86,1.0) の 2 本の加重）に、粒子 0.014。",
+  "implementation": "(1) QLV：最高行を `{mp:99, refl:1, smoke:260, ped:1.0, mips:6, msaa:true, ao:1, streak:1, aoRes:1, aoN:16, grain:.014, thr:1.25}`、高を `aoRes:2, aoN:12, grain:.018, thr:1.30`、他は aoRes:2 aoN:12 grain:.022 thr:1.38。(2) resizePost の `const aw=Math.max(1,w>>1), ah=Math.max(1,h>>1);` を `const dvA=QLV[POST.level].aoRes||2; const aw=Math.max(1,(w/dvA)|0), ah=Math.max(1,(h/dvA)|0);` に。(3) AO_FRAG のループ `for(int i=0;i<12;i++){ float fi=float(i)+0.5;` を `for(int i=0;i<AO_N;i++){ ... sqrt(fi/float(AO_N))*R ...` に、`float ao=pow(clamp(1.0-occ/12.0,0.0,1.0),1.5);` を `/float(AO_N)` に。AO_FRAG 先頭に `#define AO_N 12` を置き、applyLevel で aoN が変わったら `POST.mats.ao.fragmentShader=AO_FRAG.replace('#define AO_N 12','#define AO_N '+Q.aoN); POST.mats.ao.needsUpdate=true;`（`POST.aoOn=!!Q.ao && aoUser;` の直後）。`uRadius:{value:7.0}` は applyLevel で level 0 なら 9.0。AOBLUR_FRAG のタップ `for(int i=1;i<=4;i++)` を 6 に。(4) ブルーム：`uThr:{value:1.38}` を applyLevel で `M.pre.uniforms.uThr.value=Q.thr`。(5) ストリーク：`const strides=[1,3,9];` を `[1,3,9,27]` にしてループを 4 回（a/b のピンポンで足りる）、`M.streak.uniforms.uTint` を段ごとに切替（奇数段は暖色 (1.0,0.86,0.72)、偶数段は寒色）し、合成は `STREAK_STRENGTH=0.32` → 0.26 に（本数が増える分）。(6) 粒子：`uGrain:{value:0.022}` を applyLevel で `M.comp.uniforms.uGrain.value=Q.grain`。(7) 性能表示（drawPerf）に AO 解像度を出すと検証しやすい。",
+  "anchors": [
+   "  {mp:99,   refl:1, smoke:260, ped:1.0,  mips:6, msaa:true,  ao:1, streak:1},   // 最高：ネイティブ解像度・SSAO・反射を毎フレーム",
+   "    const aw=Math.max(1,w>>1), ah=Math.max(1,h>>1);",
+   "  for(int i=0;i<12;i++){\n    float fi=float(i)+0.5;",
+   "  float ao=pow(clamp(1.0-occ/12.0,0.0,1.0),1.5);",
+   "uRadius:{value:7.0},uBias:{value:0.35}",
+   "const AO_STRENGTH=0.85, STREAK_STRENGTH=0.32;",
+   "uThr:{value:1.38},uKnee:{value:0.36}",
+   "  const strides=[1,3,9];",
+   "uGrain:{value:0.022}",
+   "  POST.aoOn=!!Q.ao && aoUser; POST.streakOn=!!Q.streak;"
+  ],
+  "est_lines": 45,
+  "perf_cost": "中（最高画質のみ）。フル解像度 AO は 5.9MP × 16 サンプル × 深度復号で M5 でも 3〜5ms の可能性があり、120Hz は諦めて 60Hz 維持が目安。自動画質が「高」に落とせば半解像度に戻るので安全弁はある。ストリーク +1 段は 1/4 解像度で無視できる。",
+  "impact": 7,
+  "risk": "中。AO_FRAG を文字列置換で再コンパイルするため、applyLevel が頻繁に呼ばれてもシェーダ再生成は aoN が変わった時だけに限定する。フル解像度 AO の深度 RT（RGBA 8bit パック）は大きさが 4 倍になるのでメモリ +24MB 程度、32GB 機では問題なし。"
+ }
+}
