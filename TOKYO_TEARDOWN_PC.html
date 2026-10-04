@@ -73,7 +73,11 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
 #runLbl{font-size:9px;letter-spacing:.34em;color:var(--dim);font-weight:800;margin-top:3px;}
 #mapName{font-size:11px;font-weight:800;letter-spacing:.3em;color:var(--cyan);opacity:.9;text-shadow:0 0 10px rgba(79,227,240,.5);margin-top:4px;}
 #modeTag{font-size:9px;letter-spacing:.34em;color:var(--dim);font-weight:800;margin-top:3px;}
+#compass{display:block;width:560px;height:32px;margin:6px auto 0;opacity:.95;}
 #scoreWrap{text-align:right;}
+#bigmapCv{display:block;width:min(78vh,78vw);height:min(78vh,78vw);border-radius:14px;border:1px solid var(--edge);margin:0 auto;position:relative;inset:auto;}
+#bmLegend{margin-top:10px;font-size:11px;color:var(--dim);letter-spacing:.06em;}
+#bmLegend i{display:inline-block;width:12px;height:12px;vertical-align:-2px;margin:0 4px 0 10px;border-radius:2px;}
 #scoreBig{font-size:40px;font-weight:900;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums;color:#fff;
   text-shadow:0 0 18px rgba(255,181,61,.45),0 2px 0 rgba(0,0,0,.7);transform-origin:100% 50%;}
 #scoreBig span{font-size:14px;letter-spacing:.06em;margin-left:3px;color:var(--dim);}
@@ -119,6 +123,12 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
 #xhDist{font-size:11px;color:var(--dim);letter-spacing:.14em;font-variant-numeric:tabular-nums;text-shadow:0 1px 0 #000;}
 #xhTgt{font-size:12px;color:var(--ink);font-weight:800;letter-spacing:.06em;margin-top:2px;text-shadow:0 1px 0 #000,0 0 8px rgba(0,0,0,.8);opacity:.92;}
 #xhTgt.lm{color:var(--gold);}
+#xhSp{position:absolute;left:50%;top:50%;width:0;height:0;transform:translate(-50%,-50%);border:1.5px solid rgba(255,181,61,.75);border-radius:50%;opacity:0;pointer-events:none;
+  box-shadow:0 0 6px rgba(0,0,0,.6);transition:opacity .15s;}
+#xhSp.on{opacity:1;}
+#xhHit{position:absolute;left:50%;top:50%;width:26px;height:26px;transform:translate(-50%,-50%) rotate(45deg);opacity:0;pointer-events:none;}
+#xhHit::before,#xhHit::after{content:"";position:absolute;background:#fff;box-shadow:0 0 6px rgba(255,120,60,.9);}
+#xhHit::before{left:0;top:12px;width:26px;height:2px;} #xhHit::after{left:12px;top:0;width:2px;height:26px;}
 #xhCd{position:absolute;left:50%;top:calc(50% - 34px);width:60px;height:2px;margin-left:-30px;background:var(--amber);transform-origin:0 50%;transform:scaleX(0);opacity:0;}
 #cutline{position:absolute;left:0;top:0;height:2px;width:0;background:var(--cyan);transform-origin:0 50%;opacity:0;pointer-events:none;z-index:12;
   box-shadow:0 0 10px var(--cyan),0 0 28px rgba(79,227,240,.55);}
@@ -273,7 +283,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
       <div class="k"><kbd>Z</kbd><kbd>C</kbd></div><div class="v">前／次の武器　<kbd>1</kbd>〜<kbd>0</kbd> 直接選択　<kbd>Tab</kbd> 一覧</div>
       <div class="k"><kbd>X</kbd></div><div class="v">装薬を起爆</div>
       <div class="k"><kbd>V</kbd></div><div class="v">ズーム切替（マウス右ボタン／LT は押している間）</div>
-      <div class="k"><kbd>R</kbd><kbd>T</kbd></div><div class="v">視点を水平に戻す／俯瞰ポイントへ移動</div>
+      <div class="k"><kbd>R</kbd><kbd>T</kbd><kbd>M</kbd></div><div class="v">視点を水平に戻す／俯瞰ポイントへ移動／大きな地図</div>
       <div class="k"><kbd>H</kbd><kbd>O</kbd></div><div class="v">HUD表示切替／性能表示（F2 でも）</div>
       <div class="k"><kbd>Esc</kbd></div><div class="v">メニュー（設定・マップ・モード）。メニューも矢印キーと Enter で操作</div>
       <div class="k"><kbd>/</kbd></div><div class="v">操作一覧（MacBook の F1 は輝度キー）</div>
@@ -297,6 +307,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
       <div id="runHud"><div id="runBig">60.0</div><div id="runLbl">残り秒</div></div>
       <div id="mapName">歌舞伎町</div>
       <div id="modeTag">FREE PLAY</div>
+      <canvas id="compass" width="1120" height="64"></canvas>
     </div>
     <div id="scoreWrap">
       <div id="scoreBig">0<span>t</span></div>
@@ -313,6 +324,8 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
   <div id="cause"></div>
   <div id="xh"><div class="a"></div><div class="b"></div><div class="c"></div><div class="d"></div><div class="dot"></div></div>
   <div id="xhCd"></div>
+  <div id="xhSp"></div>
+  <div id="xhHit"></div>
   <div id="xhInfo"><div id="xhDist">—</div><div id="xhTgt"></div></div>
   <button id="det">起爆 <kbd>X</kbd><span id="detN">0</span></button>
   <div id="wbar"></div>
@@ -321,6 +334,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
   <div id="keyhint"></div>
   <div id="hint"></div>
 </div>
+<div id="bigmap" class="ov"><div class="sheet" style="width:auto;text-align:center"><h3>MAP <span class="hk">M / Esc で閉じる</span><button id="bmClose" aria-label="閉じる">✕</button></h3><canvas id="bigmapCv" width="1400" height="1400"></canvas><div id="bmLegend"><i style="background:rgba(79,227,240,.6)"></i>健在　<i style="background:rgba(255,209,102,.95)"></i>ランドマーク　<i style="background:rgba(255,181,61,.85)"></i>損傷　<i style="background:rgba(255,61,127,.5)"></i>倒壊　<i style="background:rgba(255,120,30,.95);border-radius:50%"></i>火災</div></div></div>
 <div id="cutline"></div>
 <div id="perf"></div>
 
@@ -367,6 +381,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
       <div class="k"><kbd>X</kbd></div><div class="v">置いた装薬を起爆</div>
       <div class="k"><kbd>V</kbd></div><div class="v">ズーム切替</div>
       <div class="k"><kbd>R</kbd> / <kbd>T</kbd></div><div class="v">視点を水平に ／ 俯瞰ポイントを順に移動</div>
+      <div class="k"><kbd>M</kbd></div><div class="v">大きな地図（ランドマーク名・損傷・火災）</div>
       <div class="k"><kbd>H</kbd> / <kbd>O</kbd></div><div class="v">HUD表示切替 ／ 性能表示（MacBook の F1/F2 は輝度キーなので / と O を用意）</div>
       <div class="k"><kbd>Esc</kbd> / <kbd>P</kbd></div><div class="v">メニュー（キーで操作できます）</div>
     </div>
@@ -9173,7 +9188,64 @@ function targetLabel(h){
   return name+(mat?'　'+mat:'')+(dmg>0?'　損傷'+dmg+'%':'');
 }
 let hudT=0, mmT=0;
+/* 着弾予告：照準の先（建物なら屋上、地面なら路面）に兵装の効果半径の輪を置く。絨毯爆撃は 9 点、焼夷弾は火の海の広さ */
+const AIMR={mesh:null, n:0, t:0, mat:null};
+const AIM_RADIUS={missile:30, carpet:30, incend:24, grav:100, orbit:26, demo:34, meteor:118, nuke:190, orb:0, ball:0, rail:0, gun:0, cutter:0};
+function aimRingsInit(){
+  if(AIMR.mesh||typeof scene==='undefined'||!scene) return;
+  const g=new THREE.RingGeometry(.86,1.0,48); g.rotateX(-Math.PI/2);
+  AIMR.mat=new THREE.MeshBasicMaterial({color:0xffb53d,transparent:true,opacity:.55,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,fog:false});
+  AIMR.mesh=new THREE.InstancedMesh(g,AIMR.mat,9); AIMR.mesh.frustumCulled=false; AIMR.mesh.renderOrder=3; AIMR.mesh.count=0; scene.add(AIMR.mesh);
+}
+/* その地点の「上面」の高さ：上空から下へ走査して最初の固体の上。何も無ければ路面 */
+function topAt(x,z){
+  const y0=Math.min(cityTop+4, 420);
+  for(let y=y0;y>0;y-=VOX*.5){ if(solidAt(x,y,z)) return y+VOX*.6; }
+  return .6;
+}
+const _am=new THREE.Matrix4(), _ap=new THREE.Vector3(), _aq=new THREE.Quaternion(), _as=new THREE.Vector3();
+function updAimRings(dt){
+  aimRingsInit(); if(!AIMR.mesh) return;
+  AIMR.t+=dt;
+  const W=curW(); let n=0;
+  const show=!uiBlocked() && !CUT.on && (AIM_RADIUS[W.id]>0 || W.id==='carpet');
+  if(show){
+    const h=aimRay();
+    if(!h.miss){
+      const pulse=1+Math.sin(AIMR.t*4.5)*.04;
+      const put=(x,z,r,y)=>{ if(n>=9) return; _ap.set(x,(y!==undefined?y:topAt(x,z))+.15,z); _as.set(r*pulse,1,r*pulse); _am.compose(_ap,_aq,_as); AIMR.mesh.setMatrixAt(n++,_am); };
+      if(W.id==='carpet'){
+        const o=camera.position; let fx0=o.x-h.x, fz0=o.z-h.z; const fl=Math.hypot(fx0,fz0)||1; fx0/=-fl; fz0/=-fl;   // 照準の向き（水平）
+        const gap=26; for(let i=0;i<9;i++) put(h.x+fx0*gap*(i-4), h.z+fz0*gap*(i-4), 9);
+        AIMR.mat.color.setHex(0xffb53d); AIMR.mat.opacity=.5;
+      } else {
+        const r=AIM_RADIUS[W.id];
+        put(h.x,h.z,r, h.ground?.6:undefined);
+        if(W.id==='nuke'||W.id==='meteor'){ put(h.x,h.z,r*.45,h.ground?.6:undefined); }            // 内側＝確実に消える範囲
+        AIMR.mat.color.setHex(W.id==='nuke'?0xff3d7f:(W.id==='incend'?0xff7a30:0xffb53d)); AIMR.mat.opacity=.42;
+      }
+    }
+  }
+  AIMR.mesh.count=n; if(n) AIMR.mesh.instanceMatrix.needsUpdate=true;
+  // 機関砲の散布円：熱で広がる。画面上の半径 = tan(散り角)×焦点距離
+  const sp=document.getElementById('xhSp');
+  if(sp){
+    if(W.id==='gun' && !uiBlocked()){
+      const ang=.005+(typeof gunHeat==='number'?gunHeat:0)*.013;
+      const f=(window.innerHeight/2)/Math.tan(camera.fov*Math.PI/360);
+      const px=Math.max(14,Math.tan(ang)*f*2);
+      sp.style.width=px+'px'; sp.style.height=px+'px'; sp.classList.add('on');
+    } else sp.classList.remove('on');
+  }
+}
+let hitFlash=0;
+function updHitMark(dt){
+  const h=document.getElementById('xhHit'); if(!h) return;
+  if(hitFlash>0){ hitFlash-=dt*5; h.style.opacity=Math.max(0,Math.min(1,hitFlash)); h.style.transform='translate(-50%,-50%) rotate(45deg) scale('+(1.2-hitFlash*.2).toFixed(2)+')'; }
+  else if(h.style.opacity!=='0') h.style.opacity='0';
+}
 function updHUD(dt){
+  updAimRings(dt); updHitMark(dt); drawCompass(dt);
   mmT+=dt; if(mmT>.15){ mmT=0; drawMinimap(); }
   hudT+=dt; if(hudT<.1) return; hudT=0;
   let p=Math.min(100,killedVox/totalVox*100);
@@ -9224,7 +9296,7 @@ const CHAINRANK=[
   [34,'#a24bff','ANNIHILATOR'],[46,'#ff2020','CATACLYSM'],[60,'#ffffff','BEYOND']
 ];
 let popVox=0;
-function pushVox(n){ if(n>0) popVox+=n; }
+function pushVox(n){ if(n>0){ popVox+=n; if(n>=6) hitFlash=1; } }
 function flushPops(dt){
   popT-=dt;
   if(popT>0 || popVox<=0) return;
@@ -9395,7 +9467,7 @@ function updWeaponUI(){
 function cycleW(dir){ const i=WPN.findIndex(w=>w.id===wpn); selW(WPN[(i+dir+WPN.length)%WPN.length].id,true); }
 function updKeyHint(){
   const W=curW();
-  el.keyhint.innerHTML='<b>'+W.n+'</b>　'+(WHINT[W.id]||'')+'<br><span>WASD 移動　↑↓←→ 視点　E/Q 上下　Shift 加速　Z/C 武器　Tab 一覧　V ズーム　T 俯瞰　Esc メニュー　/ 操作一覧'+(PAD.on?'　🎮 パッド有効':'')+'</span>';
+  el.keyhint.innerHTML='<b>'+W.n+'</b>　'+(WHINT[W.id]||'')+'<br><span>WASD 移動　↑↓←→ 視点　E/Q 上下　Shift 加速　Z/C 武器　Tab 一覧　V ズーム　T 俯瞰　M 地図　Esc メニュー　/ 操作一覧'+(PAD.on?'　🎮 パッド有効':'')+'</span>';
 }
 /* ══════════ 設定（端末に保存） ══════════ */
 const PCS={q:'auto',scale:1,fov:75,sens:5,invY:false,ao:true,snd:true,fx:1,hud:true,mlook:'lock'};   // mlook: lock | hover | drag
@@ -9423,9 +9495,10 @@ const KEYLOOK_PX=1050, CUT_PX=720, PADLOOK_PX=1400;
 const pmenu=document.getElementById('pmenu'), titleEl=document.getElementById('title'), keysEl=document.getElementById('keys'), resultEl=document.getElementById('result');
 const cutLineEl=document.getElementById('cutline');
 function menuOpen(){ return pmenu.classList.contains('on'); }
-function uiBlocked(){ return booting || paused || resultOn || titleOn || menuOpen() || panelOpen() || keysOn; }
+function uiBlocked(){ return booting || paused || resultOn || titleOn || menuOpen() || panelOpen() || keysOn || mapOn; }
 function topOverlay(){
   if(keysOn) return keysEl;
+  if(mapOn) return bigmapEl;
   if(panelOpen()) return wpanel;
   if(menuOpen()) return pmenu;
   if(titleOn) return titleEl;
@@ -9436,6 +9509,7 @@ function closeTop(){
   const ov=topOverlay();
   if(ov===titleEl){ openMenu('menu'); return; }        // タイトルでは Esc＝設定・マップ・モード
   if(ov===keysEl) closeKeys();
+  else if(ov===bigmapEl) closeMap();
   else if(ov===wpanel) closePanel();
   else if(ov===pmenu) closeMenu();
 }
@@ -9493,7 +9567,7 @@ function releasePointers(){
   hideCutLine(); el.xh.classList.remove('cut');
 }
 /* ── キーボード ── */
-const GAME_KEYS=new Set(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter','F1','F2','Slash','KeyO','KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','KeyZ','KeyC','KeyX','KeyV','KeyR','KeyT','KeyH','KeyP','KeyI','KeyJ','KeyK','KeyL','ShiftLeft','ShiftRight','Escape']);
+const GAME_KEYS=new Set(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter','F1','F2','Slash','KeyO','KeyM','KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','KeyZ','KeyC','KeyX','KeyV','KeyR','KeyT','KeyH','KeyP','KeyI','KeyJ','KeyK','KeyL','ShiftLeft','ShiftRight','Escape']);
 const keyLook={x:0,y:0};
 window.addEventListener('keydown',e=>{
   const code=e.code;
@@ -9506,6 +9580,7 @@ window.addEventListener('keydown',e=>{
     if(ov===titleEl && (code==='Enter'||code==='Space') && !rep && (!KNAV.lastId||KNAV.lastId==='tStart')){ startGame(); e.preventDefault(); return; }
     if(ov===titleEl && (code==='F1'||code==='Slash') && !rep){ openKeys(); e.preventDefault(); return; }
     if(code==='Tab'){ if(ov===wpanel) closePanel(); e.preventDefault(); return; }
+    if(code==='KeyM' && ov===bigmapEl){ if(!rep) closeMap(); e.preventDefault(); return; }
     if(code==='ArrowUp'||code==='KeyW'||code==='KeyI'){ knavMove(0,-1); e.preventDefault(); return; }
     if(code==='ArrowDown'||code==='KeyS'||code==='KeyK'){ knavMove(0,1); e.preventDefault(); return; }
     if(code==='ArrowLeft'||code==='KeyA'||code==='KeyJ'){ knavMove(-1,0); e.preventDefault(); return; }
@@ -9529,6 +9604,7 @@ window.addEventListener('keydown',e=>{
     case 'KeyR': cam.pitch=0; break;
     case 'KeyT': cycleView(); break;
     case 'KeyH': toggleHud(); break;
+    case 'KeyM': openMap(); break;
     case 'F1': case 'Slash': openKeys(); break;
     case 'F2': case 'KeyO': togglePerf(); break;
     default: { const wi=KEYCODE_W[code]; if(wi!==undefined&&WPN[wi]) selW(WPN[wi].id,true); }
@@ -9797,9 +9873,9 @@ function cycleView(){
 }
 /* ══════════ ミニマップ ══════════ */
 const mmCv=document.getElementById('minimap'), mmg=mmCv?mmCv.getContext('2d'):null;
-function drawMinimap(){
-  if(!mmg||!CITY||!PCS.hud) return;
-  const W=mmCv.width, H=mmCv.height;
+function drawMinimap(){ if(!mmg||!CITY||!PCS.hud) return; drawMapTo(mmCv,mmg,false); }
+function drawMapTo(cv,mmg,big){
+  const W=cv.width, H=cv.height;
   const x0=CITY.x0-50,x1=CITY.x1+50,z0=CITY.z0-50,z1=CITY.z1+50;
   const sc=Math.min(W/(x1-x0),H/(z1-z0)); const ox=(W-(x1-x0)*sc)/2, oz=(H-(z1-z0)*sc)/2;
   const X=(x)=>ox+(x-x0)*sc, Z=(z)=>oz+(z-z0)*sc;
@@ -9817,9 +9893,60 @@ function drawMinimap(){
   mmg.fillStyle='rgba(255,255,255,.10)';
   mmg.beginPath(); mmg.moveTo(px,pz);
   mmg.arc(px,pz,W*.28,Math.atan2(fz,fx)-hf,Math.atan2(fz,fx)+hf); mmg.closePath(); mmg.fill();
+  const S=big?2.6:1;
   mmg.fillStyle='#fff'; mmg.strokeStyle='rgba(0,0,0,.8)'; mmg.lineWidth=2;
-  mmg.beginPath(); mmg.moveTo(px+fx*11,pz+fz*11); mmg.lineTo(px-fx*7+fz*6,pz-fz*7-fx*6); mmg.lineTo(px-fx*7-fz*6,pz-fz*7+fx*6); mmg.closePath(); mmg.fill(); mmg.stroke();
+  mmg.beginPath(); mmg.moveTo(px+fx*11*S,pz+fz*11*S); mmg.lineTo(px-fx*7*S+fz*6*S,pz-fz*7*S-fx*6*S); mmg.lineTo(px-fx*7*S-fz*6*S,pz-fz*7*S+fx*6*S); mmg.closePath(); mmg.fill(); mmg.stroke();
+  if(big){
+    // 道路（幹線）とランドマーク名
+    mmg.font='bold 22px "Hiragino Sans","Noto Sans JP",sans-serif'; mmg.textAlign='center'; mmg.textBaseline='bottom';
+    for(let i=0;i<LMS.length;i++){ const L=LMS[i]; let cx=0,cz=0,n=0; for(const k of L.ids){ const b=blds[k]; if(!b) continue; cx+=b.ox+b.W*VOX/2; cz+=b.oz+b.D*VOX/2; n++; } if(!n) continue; cx/=n; cz/=n;
+      const tx=X(cx), tz=Z(cz)-8; mmg.lineWidth=5; mmg.strokeStyle='rgba(0,0,0,.85)'; mmg.strokeText(L.name,tx,tz); mmg.fillStyle=L.fell?'rgba(255,120,120,.9)':'rgba(255,220,140,1)'; mmg.fillText(L.name,tx,tz); }
+    mmg.font='bold 20px sans-serif'; mmg.fillStyle='rgba(255,255,255,.55)'; mmg.textAlign='left'; mmg.textBaseline='top'; mmg.fillText('N ↑',14,12);
+    mmg.textAlign='right'; mmg.fillText(MAPNAMES[MAPID]+'　SEED '+citySeed,W-14,12);
+  }
 }
+/* コンパス帯：方位の目盛りと、ランドマークの方角（金）。N＝-Z */
+const cpCv=document.getElementById('compass'), cpg=cpCv?cpCv.getContext('2d'):null;
+let cpT=0;
+function drawCompass(dt){
+  if(!cpg||!PCS.hud) return;
+  cpT+=dt; if(cpT<.05) return; cpT=0;
+  const W=cpCv.width, H=cpCv.height, cx=W/2;
+  const hd=((-cam.yaw)%(Math.PI*2)+Math.PI*2)%(Math.PI*2);          // 向いている方位（0=N）
+  const span=Math.PI*.75, pxPerRad=W/span;                              // 表示幅 135°
+  cpg.clearRect(0,0,W,H);
+  const grd=cpg.createLinearGradient(0,0,W,0); grd.addColorStop(0,'rgba(6,10,16,0)'); grd.addColorStop(.18,'rgba(6,10,16,.55)'); grd.addColorStop(.82,'rgba(6,10,16,.55)'); grd.addColorStop(1,'rgba(6,10,16,0)');
+  cpg.fillStyle=grd; cpg.fillRect(0,0,W,H);
+  const names={0:'N',90:'E',180:'S',270:'W'};
+  cpg.textAlign='center'; cpg.textBaseline='middle';
+  for(let d=0;d<360;d+=15){
+    let rel=d*Math.PI/180-hd; rel=Math.atan2(Math.sin(rel),Math.cos(rel));
+    if(Math.abs(rel)>span/2) continue;
+    const x=cx+rel*pxPerRad, major=d%90===0, mid=d%45===0;
+    const fade=1-Math.pow(Math.abs(rel)/(span/2),3);
+    cpg.strokeStyle='rgba(232,239,246,'+(fade*(major?.95:.5)).toFixed(2)+')'; cpg.lineWidth=major?3:1.5;
+    cpg.beginPath(); cpg.moveTo(x,H-6); cpg.lineTo(x,H-(major?26:(mid?18:12))); cpg.stroke();
+    if(major){ cpg.fillStyle='rgba(232,239,246,'+fade.toFixed(2)+')'; cpg.font='bold 22px sans-serif'; cpg.fillText(names[d],x,18); }
+    else if(mid){ cpg.fillStyle='rgba(141,162,180,'+fade.toFixed(2)+')'; cpg.font='bold 14px sans-serif'; cpg.fillText(String(d),x,20); }
+  }
+  // ランドマーク
+  for(let i=0;i<LMS.length;i++){ const L=LMS[i]; if(L.fell) continue; let lx=0,lz=0,n=0; for(const k of L.ids){ const b=blds[k]; if(!b) continue; lx+=b.ox+b.W*VOX/2; lz+=b.oz+b.D*VOX/2; n++; } if(!n) continue; lx/=n; lz/=n;
+    const dx=lx-camera.position.x, dz=lz-camera.position.z; const dist=Math.hypot(dx,dz);
+    let rel=Math.atan2(dx,-dz)-hd; rel=Math.atan2(Math.sin(rel),Math.cos(rel)); if(Math.abs(rel)>span/2) continue;
+    const x=cx+rel*pxPerRad;
+    cpg.fillStyle='rgba(255,209,102,.95)'; cpg.beginPath(); cpg.moveTo(x,H-4); cpg.lineTo(x-7,H-16); cpg.lineTo(x+7,H-16); cpg.closePath(); cpg.fill();
+    if(Math.abs(rel)<.35){ cpg.font='bold 15px "Hiragino Sans","Noto Sans JP",sans-serif'; cpg.fillStyle='rgba(255,209,102,.95)'; cpg.strokeStyle='rgba(0,0,0,.8)'; cpg.lineWidth=4; const t=L.name+' '+Math.round(dist)+'m'; cpg.strokeText(t,x,H-34); cpg.fillText(t,x,H-34); }
+  }
+  // 中央の指標
+  cpg.fillStyle='var(--cyan)'; cpg.fillStyle='rgba(79,227,240,.95)'; cpg.beginPath(); cpg.moveTo(cx,H-2); cpg.lineTo(cx-6,H-12); cpg.lineTo(cx+6,H-12); cpg.closePath(); cpg.fill();
+}
+/* 大きな地図（M） */
+const bigmapEl=document.getElementById('bigmap'), bmCv=document.getElementById('bigmapCv'), bmg=bmCv?bmCv.getContext('2d'):null;
+let mapOn=false;
+function openMap(){ if(mapOn) return; mapOn=true; bigmapEl.classList.add('on'); releasePointers(); if(bmg) drawMapTo(bmCv,bmg,true); knavOpen(bigmapEl,'bmClose'); }
+function closeMap(){ if(!mapOn) return; mapOn=false; bigmapEl.classList.remove('on'); if(KNAV.root===bigmapEl) knavClose(); }
+document.getElementById('bmClose').addEventListener('click',e=>{ e.stopPropagation(); closeMap(); });
+bigmapEl.addEventListener('click',e=>{ if(e.target.id==='bigmap') closeMap(); });
 /* 初回だけ短い操作ヒント */
 let hintT=null;
 function showHint(force){
@@ -9852,7 +9979,7 @@ const PCDBG={
   start:startGame, showTitle:showTitle, titleOn:()=>titleOn,
   key:(code,down)=>{ window.dispatchEvent(new KeyboardEvent(down?'keydown':'keyup',{code:code,key:code,bubbles:true,cancelable:true})); },
   look:lookPx, keys:()=>keys, cut:()=>CUT, zoomK:()=>zoomK, fov:()=>camera.fov, PCS:PCS, cycleW:cycleW,
-  menuOpen:menuOpen, panelOpen:panelOpen, keysOn:()=>keysOn, knav:()=>({root:KNAV.root?KNAV.root.id:null, idx:KNAV.idx, id:KNAV.lastId}),
+  menuOpen:menuOpen, panelOpen:panelOpen, keysOn:()=>keysOn, mapOn:()=>mapOn, openMap:openMap, closeMap:closeMap, drawCompass:drawCompass, knav:()=>({root:KNAV.root?KNAV.root.id:null, idx:KNAV.idx, id:KNAV.lastId}),
   pad:()=>PAD, locked:()=>locked, fireDown:fireDown, fireUp:fireUp, fireSrc:()=>fireSrc,
   wbar:()=>Array.from(wbar.querySelectorAll('.q')).map(b=>b.dataset.w+(b.classList.contains('sel')?'*':'')),
   minimap:()=>mmCv, readKeys:readKeys, openMenu:openMenu, closeMenu:closeMenu, openPanel:openPanel, closePanel:closePanel, openKeys:openKeys,

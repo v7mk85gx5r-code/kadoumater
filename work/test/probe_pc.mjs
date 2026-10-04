@@ -13,7 +13,7 @@ await page.route('**/*',async route=>{ const u=route.request().url();
   if(u.startsWith('http://local.test/')) return route.fulfill({status:200,contentType:'text/html',body:html});
   return route.abort(); });
 await page.goto('http://local.test/index.html');
-await page.waitForFunction(()=>window.__tt && document.getElementById('boot') && getComputedStyle(document.getElementById('boot')).display==='none',null,{timeout:150000}).catch(()=>{});
+await page.waitForFunction(()=>window.__tt && document.getElementById('boot') && getComputedStyle(document.getElementById('boot')).display==='none',null,{timeout:420000}).catch(()=>{});
 await page.waitForTimeout(wait);
 let out; try{ out=await page.evaluate(expr); }catch(e){ out='EVAL ERROR: '+e.message; }
 console.log(JSON.stringify(out,null,1)); console.log(logs.slice(0,30).join('\n'));
