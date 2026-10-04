@@ -1,0 +1,813 @@
+{
+ "P06": {
+  "id": "P06",
+  "title": "キー視点の速度プロファイル：タップ微調整・Shift 精密・斜め正規化",
+  "category": "input",
+  "description": "readKeys の視点は `keyLook += (目標-keyLook)*min(1,dt*4.5)` の一段ランプで、押し始めの 1 フレーム目から 1050px/s×(1-e^-4.5dt) の速さが出るため、1 ボクセル（遠くで数ピクセル）を狙う微調整ができない。また ↑+→ の斜めは |keyLook| が √2 倍で速い。改善: (1) 押下 120ms までは 0.3 倍の低速域（タップで約 2〜3px/フレーム相当の微小ナッジ）、以降 0.45 秒かけて二次曲線で全速へ; (2) Shift 押下中かつ WASD を押していない時は 0.35 倍（移動の加速と衝突しない）; (3) 斜めは正規化; (4) ズーム中は sensRad の fov 比に加えてさらに 0.8 倍。これで ProMotion 120Hz の細かい dt でも同じ角速度になる（すべて dt 比例）。",
+  "implementation": "ui 側（src.rep('ui')）: `const KEYLOOK_PX=1050, CUT_PX=720, PADLOOK_PX=1400;` の後に `let lookHoldT=0;` を追加。readKeys 内 `  keyLook.x = kx ? keyLook.x+(kx-keyLook.x)*Math.min(1,dt*4.5) : 0;` と y の 2 行を次に置換: `const any=kx||ky; lookHoldT = any ? lookHoldT+dt : 0; const ramp = lookHoldT<.12 ? .3 : .3+.7*Math.min(1,Math.pow((lookHoldT-.12)/.45,2)); const moving=inp.fwd||inp.side||inp.up; const fine=((keys.ShiftLeft||keys.ShiftRight)&&!moving)?.35:1; const nrm=(kx&&ky)?.7071:1; keyLook.x=kx*ramp*fine*nrm; keyLook.y=ky*ramp*fine*nrm;`（離した瞬間に止まる挙動は維持）。`inp.boost=(keys.ShiftLeft||keys.ShiftRight)?1:PAD.boost;` はそのまま（移動中のみ加速として意味を持つ）。操作一覧（body）の `<div class=\"k\"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div><div class=\"v\">移動　<kbd>Shift</kbd> 加速</div>` 行に「静止中の Shift＋矢印＝微調整」を追記。PCDBG に `lookHold:()=>lookHoldT`。検証: `pc.key('ArrowRight',true)` 後 `step` を 1 フレーム進めた yaw 変化量が従来の約 0.3 倍、0.6 秒後は同等であること。",
+  "anchors": [
+   "const KEYLOOK_PX=1050, CUT_PX=720, PADLOOK_PX=1400;",
+   "  keyLook.x = kx ? keyLook.x+(kx-keyLook.x)*Math.min(1,dt*4.5) : 0;",
+   "  const kx=((keys.ArrowRight||keys.KeyL)?1:0)-((keys.ArrowLeft||keys.KeyJ)?1:0);",
+   "  inp.boost=(keys.ShiftLeft||keys.ShiftRight)?1:PAD.boost;",
+   "function sensRad(){ return 0.0022*(PCS.sens/5)*(fovBase()/fovUser); }"
+  ],
+  "est_lines": 20,
+  "perf_cost": "無視できる: 算術のみ。",
+  "impact": 8,
+  "risk": "低。suite_pc の「キーボードのみ操作」項目が一定時間後の yaw 変化量を見ている場合、しきい値の見直しが要る。カッター線引き（CUT_PX）にも同じランプが掛かるのは好ましい（線の始点が暴れない）。"
+ },
+ "P07": {
+  "id": "P07",
+  "title": "カッターの 3D 切断面プレビューと水平切りの事前表示",
+  "category": "vfx",
+  "description": "カッターは画面上の 2D 線（#cutline）だけを見て引くが、実際の切断は「カメラを頂点とし 2 本の視線で張る平面」なので、線がビルのどこを通るか（特に奥行き方向）は切ってみるまで分からない。既存の cutMesh（切断後に 1 回光る扇形）を、ドラッグ中は低い不透明度で常時表示して「この面で切れる」を見せる。Space を押しただけ（線長 26px 未満）の時も fireWeapon の水平切り（±0.30rad）と同じ扇形を出し、離す前に結果が読める。切断面の法線から求まる倒れ方向（doCut の setLeanDir と同じ式）を照準脇に矢印で添える。",
+  "implementation": "ui 側（src.rep('ui')）: `function updCutPreview(){ const c=cutPts();` を拡張し、末尾で `cutPreview(c)` を呼ぶ。`function cutPreview(c){ const o=camera.position; let dA,dB; if(c.len>26){ dA=screenRay(c.ax,c.ay); dB=screenRay(c.bx,c.by); } else { const dir=new THREE.Vector3(); camera.getWorldDirection(dir); const ca=Math.cos(-.30),sa=Math.sin(-.30),cb=Math.cos(.30),sb=Math.sin(.30); dA=[dir.x*ca-dir.z*sa,dir.y,dir.x*sa+dir.z*ca]; dB=[dir.x*cb-dir.z*sb,dir.y,dir.x*sb+dir.z*cb]; } setCutFan(o,dA,dB,7,CUT_R); cutMesh.material.opacity=.14; cutMesh.material.color.setHex(0x9ff8ff); cutMesh.visible=true; cutPrevOn=true; 倒れ方向: n=dA×dB → hl=hypot(nx,nz) → #xhLean を rotate(atan2) }`。本体（rep）: doCut 内の扇形頂点書き込み 12 行を `setCutFan(o,dA,dB,r0,r1)` 関数に括り出し（`  cutMesh.visible=true; cutT=1;` の直前まで）、`cutT>0` の減衰処理 `  if(cutT>0){` は `if(cutT>0){...} else if(cutPrevOn){ /* プレビュー中は消さない */ }` に。fireDown の `  if(W.swipe){ CUT.on=true; CUT.x=0; CUT.y=0; el.xh.classList.add('cut'); return; }` の直後で `updCutPreview()` を 1 回呼び、押した瞬間から水平切り面が出るようにする。fireUp/cancelCut で `cutPrevOn=false; if(cutT<=0) cutMesh.visible=false;`。body: `<div id=\"xhCd\"></div>` の隣に `<div id=\"xhLean\">⟶</div>`（CSS で 50%/50% 中心、opacity は CUT.on 中のみ）。genCity の後始末は既存の `if(cutMesh){ cutMesh.visible=false; } cutT=0;` に `cutPrevOn=false;` を足す。",
+  "anchors": [
+   "function updCutPreview(){ const c=cutPts();",
+   "  if(W.swipe){ CUT.on=true; CUT.x=0; CUT.y=0; el.xh.classList.add('cut'); return; }",
+   "  cutMesh.visible=true; cutT=1;",
+   "  if(cutT>0){",
+   "function fireUp(cancelled){",
+   "function cutPts(){"
+  ],
+  "est_lines": 60,
+  "perf_cost": "無視できる: 既存の 1 枚ポリゴンを毎フレーム 12 floats 更新するだけ。screenRay 2 回（unproject）。",
+  "impact": 8,
+  "risk": "中。cutMesh を切断後の発光とプレビューで共用するため、切断直後（cutT>0）はプレビューを出さない順序にする。CUT_R（切断半径）は本体の const なので ui から参照可能だが名前衝突に注意。"
+ },
+ "P08": {
+  "id": "P08",
+  "title": "制御発破：設置ゴースト・起爆順の番号・起爆ボタンの脈動",
+  "category": "ui",
+  "description": "制御発破は「置く → X で順に起爆」だが、置く前に設置点が見えず（照準点にそのまま置かれるため壁面の段差で意図と違う高さになる）、置いた後も赤い球が点滅するだけで起爆順（置いた順に 0.16 秒間隔）が分からない。倒れる向きは重心から外へ、という仕様も見えない。改善: 兵装 demo 選択中は AIM.h（P01）に半透明の設置ゴースト球を出し、設置済みの装薬には画面投影した番号ラベル（1〜16）を重ねる。装薬が 2 個以上あれば重心→各装薬の広がりから「倒れる向き」をミニマップに矢印で示し、#det ボタンを脈動させて X を促す。",
+  "implementation": "本体（rep）: chgPool 生成ループの直後（`    chgPool.push({o:o,mat:m,busy:false});` を含むブロックの後）に ghost 1 個 `chgGhost=new THREE.Mesh(UNIT_SPHERE, MeshBasicMaterial({color:0xff3b30,transparent:true,opacity:.22,depthWrite:false,fog:false}))` を追加（`let UNIT_RING=null, UNIT_DISC=null, mslPool=[], metPool=[], chgPool=[],` の宣言行に `chgGhost=null,` を追加）。`function updCharges(dt){` に ghost の更新を追加: `if(chgGhost){ const on=(wpn==='demo')&&!AIM.h.miss&&charges.length<CHG_MAX&&!uiBlocked(); chgGhost.visible=on; if(on){ chgGhost.position.set(AIM.h.x,AIM.h.y+1,AIM.h.z); chgGhost.scale.setScalar(2.2); } }`。番号ラベル: ui 側に `const chgLbl=[]`（16 個の div を #hud に生成、class='chgL'）、updHUD 毎フレーム部で `charges.forEach((c,i)=>{ _pv.set(c.x,c.y,c.z).project(camera); 画面内なら left/top を設定し textContent=i+1; 背面（_pv.z>1）なら非表示 })`。CSS: `.chgL{position:absolute;font-size:11px;font-weight:900;color:#fff;background:rgba(255,59,48,.75);border-radius:9px;min-width:18px;text-align:center;padding:1px 4px;transform:translate(-50%,-140%);pointer-events:none}`。#det: `#det{position:absolute;left:50%;transform:translateX(-50%);bottom:142px;` に `animation:detPulse 1.1s ease-in-out infinite` を追加し `@keyframes detPulse{50%{box-shadow:0 0 18px rgba(255,181,61,.7)}}`。ミニマップ: 装薬を赤点で描き、重心から外向きの矢印（blowCharges の setLeanFrom と同じ重心）を 2 個以上で描く。",
+  "anchors": [
+   "function updCharges(dt){",
+   "    chgPool.push({o:o,mat:m,busy:false});",
+   "let UNIT_RING=null, UNIT_DISC=null, mslPool=[], metPool=[], chgPool=[], gravCore=null, gravRing=null;",
+   "function placeCharge(x,y,z){",
+   "<button id=\"det\">起爆 <kbd>X</kbd><span id=\"detN\">0</span></button>",
+   "#det{position:absolute;left:50%;transform:translateX(-50%);bottom:142px;",
+   "  mmg.fillStyle='rgba(255,120,30,.95)';"
+  ],
+  "est_lines": 70,
+  "perf_cost": "無視できる: project() 最大 16 回/フレーム、ゴースト 1 ドローコール。",
+  "impact": 6,
+  "risk": "低。ラベル div は #hud 配下なので HUD 非表示（H）に追従する。UNIT_SPHERE は initPools 内でのみ定義されているか確認して同じ場所で生成する。"
+ },
+ "P10": {
+  "id": "P10",
+  "title": "兵装ごとの照準形状と切替アニメーション・スロットに残秒表示",
+  "category": "ui",
+  "description": "武器を Z/C/数字で切り替えても、変化は wToast の文字とスロットの色だけで、照準は常に同じ十字（カッターのみ横線が伸びる）。キーボードで素早く切り替える遊び方では「いま何を持っているか」を中央視野で判別できる必要がある。#xh に data-w を付け、CSS だけで形を変える: 誘導弾＝十字＋外周ダイヤ、機関砲＝開く 4 本線（P03）、レール＝細い十字＋中心点が熱色、絨毯＝水平の 3 連ティック、焼夷＝上に反る弧、特異点＝二重円、軌道砲＝上向き矢印、制御発破＝角括弧、隕石＝斜線、鉄球＝太い円、破壊球／核＝三つ葉。切替時は照準を 120ms で scale .7→1、選択スロットを 160ms で跳ねさせ、短いクリック音を鳴らす。長いクールダウン兵装（cd≥2）のスロットには常時「7s」「45s」の cd 表記を薄く添えて、選ぶ前に待ち時間が分かる。",
+  "implementation": "ui 側（src.rep('ui')）: selW 内 `  el.xh.classList.toggle('cutw',!!W.swipe);` の直後に `el.xh.dataset.w=W.id; el.xh.animate([{transform:'translate(-50%,-50%) scale(.7)',opacity:.4},{transform:'translate(-50%,-50%) scale(1)',opacity:1}],{duration:120,easing:'ease-out'}); if(fromUser){ const q=wbar.querySelector('.q.sel'); if(q) q.animate([{transform:'translateY(-10px) scale(1.08)'},{transform:'translateY(-4px) scale(1)'}],{duration:160,easing:'cubic-bezier(.2,1.6,.4,1)'}); Snd.tick(); }`（renderWBar の後に置く）。wSlot の innerHTML（`  b.innerHTML='<span class=\"k\">'+WKEYS[i]+'</span>...`）に `(w.cd>=2?'<span class=\"cds\">'+w.cd+'s</span>':'')` を追加。CSS（src.rep('css')）: `.q .cds{position:absolute;right:5px;top:3px;font-size:9px;color:var(--dim)}`、`#xh[data-w=missile]::before{content:\"\";position:absolute;inset:6px;border:1px solid rgba(79,227,240,.5);transform:rotate(45deg)}`、`#xh[data-w=rail] .dot{background:#ffd166;box-shadow:0 0 8px #ffd166}`、`#xh[data-w=carpet] .c,#xh[data-w=carpet] .d{display:none} #xh[data-w=carpet] .a{box-shadow:12px 0 0 var(--cyan),24px 0 0 var(--cyan)}` など 13 種を `#xh .dot{...}` の後にまとめる（既存の .cutw/.cut/.zoom 規則は後ろに置いて優先させる）。音: Snd に `tick(){ if(!gate('tick',50)) return; T(2400,1500,.03,.07,'square'); }` を `    gun(){ if(!gate('gun',40)) return;` の前に追加し、knavMove の `Snd.kick()` 呼び出しにも添えるとメニュー操作にも音が付く。",
+  "anchors": [
+   "  el.xh.classList.toggle('cutw',!!W.swipe);",
+   "  b.innerHTML='<span class=\"k\">'+WKEYS[i]+'</span><div class=\"ic\">'+WICON[w.id]+'</div><div class=\"n\">'+w.n+'</div>';",
+   "#xh .dot{left:18px;top:18px;width:2px;height:2px;background:var(--mag);}",
+   ".q.sel{border-color:var(--cyan);color:var(--cyan);background:rgba(79,227,240,.16);box-shadow:0 0 16px rgba(79,227,240,.25);transform:translateY(-4px);}",
+   "    gun(){ if(!gate('gun',40)) return;",
+   "function wSlot(w,i,cls){"
+  ],
+  "est_lines": 80,
+  "perf_cost": "無視できる: 切替時のみ Web Animations 2 本。CSS 擬似要素は静的。",
+  "impact": 7,
+  "risk": "低。ホイール連打（P11 未適用時）で tick 音が連続するため gate 50ms を必ず付ける。#xh の transform は CSS で translate(-50%,-50%) しているので animate のキーフレームにも同じ translate を含めること。"
+ },
+ "P11": {
+  "id": "P11",
+  "title": "トラックパッドのホイール暴走防止と JIS/US 配列に合わせたキー表示",
+  "category": "input",
+  "description": "wheel ハンドラは |deltaY|≥1 のイベントごとに cycleW するため、MacBook のトラックパッドで二本指スクロールすると 1 ジェスチャで十数回武器が切り替わる（慣性スクロール中も続く）。deltaY を累積して 60 単位ごとに 1 段、かつ 140ms のゲートで間引く。さらに武器キー表示 WKEYS は '^' '¥' と JIS 固定で、US 配列の Mac では '=' '\\\\' が正しい。Chrome では navigator.keyboard.getLayoutMap() で Equal/Backslash/IntlYen の実際の文字を取得し、Safari（非対応）ではそのキーが初めて押された時の e.key でラベルを学習する。00_mac.py が済ませた F1/F2 代替（/ と O）とホバー視点はそのまま。",
+  "implementation": "ui 側（src.rep('ui')）: `window.addEventListener('wheel',e=>{ if(uiBlocked()) return;` から始まる 1 行を次に置換: `let whAcc=0, whT=0; window.addEventListener('wheel',e=>{ if(uiBlocked()) return; e.preventDefault(); const d=e.deltaMode===1?e.deltaY*20:e.deltaY; whAcc+=d; const now=performance.now(); if(Math.abs(whAcc)<60 || now-whT<140){ if(Math.abs(whAcc)>=60) whAcc=Math.sign(whAcc)*59; return; } whT=now; cycleW(whAcc>0?1:-1); whAcc=0; },{passive:false});`（慣性の尾で累積が溜まり続けないよう上限で頭打ち）。キー表示: `const WKEYS=['1','2','3','4','5','6','7','8','9','0','-','^','¥'];` を `let WKEYS=[...]` にし、`function learnKeyLabels(){ if(navigator.keyboard&&navigator.keyboard.getLayoutMap){ navigator.keyboard.getLayoutMap().then(m=>{ const g=(c,d)=>(m.get(c)||d); WKEYS[10]=g('Minus','-'); WKEYS[11]=g('Equal','^'); WKEYS[12]=g('IntlYen',g('Backslash','¥')); renderWBar(); }).catch(()=>{}); } }` を applyPCS の末尾から呼ぶ。keydown ハンドラの `  if(e.ctrlKey||e.metaKey||e.altKey) return;` の直後に `if((code==='Equal'||code==='Backslash'||code==='IntlYen'||code==='Minus') && e.key.length===1){ const i=KEYCODE_W[code]; if(WKEYS[i]!==e.key){ WKEYS[i]=e.key; renderWBar(); } }` を追加（Safari 向けの学習）。操作一覧の `<kbd>^</kbd> <kbd>¥</kbd>` 表記は「-、^（=）、¥（\\\\）」のように併記に変更。",
+  "anchors": [
+   "window.addEventListener('wheel',e=>{ if(uiBlocked()) return;",
+   "const WKEYS=['1','2','3','4','5','6','7','8','9','0','-','^','¥'];",
+   "  if(e.ctrlKey||e.metaKey||e.altKey) return;",
+   "const KEYCODE_W={Digit1:0,",
+   "function selW(id,fromUser){"
+  ],
+  "est_lines": 30,
+  "perf_cost": "無視できる。",
+  "impact": 6,
+  "risk": "低。renderWBar は wbar.innerHTML を全再生成するのでラベル学習時に 1 回だけ呼ぶ。getLayoutMap は Chrome のみ・セキュアコンテキスト前提（file:// では未定義になり得るので存在チェック必須）。"
+ },
+ "P12": {
+  "id": "P12",
+  "title": "状況に応じて変わるキーヒント（下段右）",
+  "category": "onboarding",
+  "description": "updKeyHint は武器名＋固定のキー一覧を 2 行出すだけで、装薬を置いた後の「X で起爆」、線を引いている最中の「離して切断」、ズーム中の「V で解除」、クールダウン中の残秒、機関砲の過熱といった『いま押すべきキー』が示されない。キーボードだけで遊ぶ人は画面下の文字が唯一の手掛かりなので、状態機械で 1 行目を差し替える（装薬 n 個→「X 起爆（n）」を amber で、CUT.on→「↑↓←→ で線を引き Space を離す」、cd>1→「再装填 n.n 秒」、zoomK>.5→「V ズーム解除」、shots モードで残弾→「残り n 発」）。更新は 10Hz の updHUD 内で、文字列が変わった時だけ DOM を書く。",
+  "implementation": "ui 側（src.rep('ui')）: `function updKeyHint(){` を `function updKeyHint(){ keyHintBase=...; keyHintLast=''; applyKeyHint(); }` に分け、新関数 `function applyKeyHint(){ const W=curW(); let top; if(CUT.on) top='<b>'+W.n+'</b>　<kbd>↑↓←→</kbd> で線を引き、<kbd>Space</kbd> を離して切断'; else if(charges.length) top='<b style=\"color:var(--amber)\">'+charges.length+' 個の装薬</b>　<kbd>X</kbd> で順に起爆'; else if(cd>1) top='<b>'+W.n+'</b>　再装填 '+cd.toFixed(1)+' 秒'; else if(wpn==='gun'&&gunHeat>.7) top='<b style=\"color:var(--mag)\">機関砲 過熱</b>　散布が広がる。少し離す'; else if(zoomK>.5) top='<b>'+W.n+'</b>　'+(WHINT[W.id]||'')+'　<kbd>V</kbd> ズーム解除'; else top='<b>'+W.n+'</b>　'+(WHINT[W.id]||''); const M=modeDef(); if(M.shots) top+='　残り <b>'+shotsLeft()+'</b> 発'; const html=top+'<br><span>'+keyHintBase+'</span>'; if(html!==keyHintLast){ keyHintLast=html; el.keyhint.innerHTML=html; } }`。keyHintBase は既存文字列 `'WASD 移動　↑↓←→ 視点　E/Q 上下　Shift 加速　Z/C 武器　Tab 一覧　V ズーム　T 俯瞰　Esc メニュー　/ 操作一覧'+(PAD.on?'　🎮 パッド有効':'')`（00_mac 適用後の文言）を使う。updHUD の 10Hz 部（`hudT=0;` の後）で `applyKeyHint()` を呼ぶ。CUT.on の切替は即時性が欲しいので fireDown/fireUp でも呼ぶ。CSS `#keyhint{position:absolute;right:18px;bottom:18px;` に `transition:opacity .15s` を足し、HUD 非表示時は既存の #hud.off 規則で消える。",
+  "anchors": [
+   "function updKeyHint(){",
+   "Esc メニュー　/ 操作一覧'+(PAD.on?",
+   "  hudT+=dt; if(hudT<.1) return; hudT=0;",
+   "#keyhint{position:absolute;right:18px;bottom:18px;",
+   "function fireDown(src){",
+   "function fireUp(cancelled){"
+  ],
+  "est_lines": 40,
+  "perf_cost": "無視できる: 10Hz で文字列比較 1 回、変化時のみ innerHTML。",
+  "impact": 6,
+  "risk": "低。PCDBG.keyhint() が textContent を返すのでテストは「武器名を含む」程度の緩い判定にしておく。charges / gunHeat / cd / zoomK は本体スコープ変数で UI ブロックから参照可能（同じ IIFE 内）。"
+ },
+ "hud-01-retina-type": {
+  "id": "hud-01-retina-type",
+  "title": "HUD 基盤のレティナ最適化：CSS トークン・vmin スケール・ヘアライン・可読性スクリム",
+  "category": "ui",
+  "description": "現状の HUD は iPhone 版の値（40px の数値、1px の枠線、12px 本文）をそのまま 1512×982 CSS px（DPR2）の画面に置いており、3024×1964 で見ると「数字だけ大きく、本文と枠が細く薄い」印象になる。スクリーンショット（work/test/pc_shots/03_gun_hit.png）でも照準下のターゲット名と右下の操作ヒントがネオン看板に埋もれて読めない。フォント平滑化・tabular 数字・0.5px ヘアライン・上下のグラデーションスクリム・ガラス調パネルを :root トークンと @media (min-resolution:2dppx) で導入し、画面全体の HUD を vmin 基準の clamp() で一括スケールする。M5 MacBook Pro で全画面にしたとき、文字が「Retina 用に設計された」密度と鮮明さになる。",
+  "implementation": "style_pc.css を src.rep('css', …) で編集する。(1) `:root{` のトークン行の直後に `--hs:clamp(.9,calc(100vmin/980),1.35); --hair:1px; --glass:rgba(8,12,18,.62);` を追加し、`@media (min-resolution:2dppx){ :root{--hair:.5px;} }` を末尾に置く。(2) `body{font-family:…` に `-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;font-feature-settings:\"tnum\",\"palt\";` を加える。(3) `#dmgNum`/`#scoreBig`/`#runBig` の `font-size:40px` を `font-size:calc(40px*var(--hs))`、`#chainN` の 68px、`.q` の 66×68px、`#minimap` の 210px、`#keyhint`/`#xhTgt`/`#dmgSub` の 11〜12px を `calc(13px*var(--hs))` 系に置換（`@media (max-width:1100px)` ブロックは残す）。(4) `#hud` に上下 18vh の `background:linear-gradient(rgba(3,5,9,.55),transparent 18%,transparent 82%,rgba(3,5,9,.6))` を持つ `#hud::before` を追加して、看板の上でも数値・ヒントが読める下地を作る（pointer-events:none、`#hud.off::before{opacity:0}`）。(5) `var(--edge)` を使う枠線（`.q`, `#minimap`, `#wtoast`, `#tKeys`, `.sheet`）の `border:1px solid` を `border:var(--hair) solid` に、`--panel` 背景のパネル（`.q`, `#wtoast`, `#det`, `#minimap`）に `backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:…` を付ける（全画面の `.ov` には付けない）。(6) `#xhTgt`/`#keyhint` の text-shadow を `0 1px 0 #000,0 0 3px #000,0 0 14px rgba(0,0,0,.95)` に強め、`#keyhint` には `--glass` 背景のカード化（padding 10px 14px, border-radius 12px）を適用する。検証：`node work/test/suite_pc.mjs … --shots` で 01_title/02_kabukicho/03_gun_hit を再取得し、`VW=1512 VH=982` でも確認する。",
+  "anchors": [
+   "  --ink:#e8eff6; --dim:#8da2b4; --cyan:#4fe3f0; --mag:#ff3d7f; --amber:#ffb53d; --gold:#ffd166;",
+   "#top{position:absolute;left:18px;right:18px;top:14px;",
+   "@media (max-width:1100px){",
+   "#keyhint{position:absolute;right:18px;bottom:18px;",
+   "#xhTgt{font-size:12px;"
+  ],
+  "est_lines": 90,
+  "perf_cost": "小：backdrop-filter は小面積（武器バー・ミニマップ・トースト）に限定。スクリムは静的グラデーション 1 枚。フレーム負荷は実質ゼロ。",
+  "impact": 8,
+  "risk": "CSS のみ。サイズの変更で `#wbar` 13 枠が 1512px 幅に収まるか（66px×1.35×13≒1160px で収まる）を確認。`.kf` のアウトラインなどキーナビの視認性を落とさないこと。"
+ },
+ "hud-06-minimap-hd": {
+  "id": "hud-06-minimap-hd",
+  "title": "ミニマップの高精細化：DPR 追従・道路網・ランドマークのピン・方位目盛と座標表示",
+  "category": "ui",
+  "description": "`#minimap` は 420×420 固定のバッキングで、建物の矩形しか描かず、北向き固定で「N↑」の文字が 1 つあるだけ。DPR2 ではちょうど等倍だが、hud-01 で CSS サイズを拡大すると滲む。canvas を CSS サイズ×DPR に追従させ、道路（XL/ZL 格子）を薄く敷き、ランドマークを小さな金のピン＋頭文字、火災は脈動、自機の扇形は視野角と一致（既存）に加え、枠の外周に 30° 刻みの方位目盛を描き、`#mmLbl` を「MAP　N↑」から「N 032°　x +120 z −40」のヘディング表示に変える。hud-05 の `drawCityMap` を共有すれば実装は薄い。",
+  "implementation": "(1) `function resize(){` 内の末尾に `if(typeof sizeMinimap==='function') sizeMinimap();` を追加し、ui_pc.js に `function sizeMinimap(){ const r=mmCv.getBoundingClientRect(); const dpr=Math.min(2,window.devicePixelRatio||1); const s=Math.round((r.width||210)*dpr); if(mmCv.width!==s){ mmCv.width=mmCv.height=s; } }` を追加（起動時 `applyPCS()` の末尾でも 1 回呼ぶ）。(2) `drawMinimap()` の背景塗り `mmg.fillStyle='rgba(6,10,16,.82)'; mmg.fillRect(0,0,W,H);` の直後に道路描画：`mmg.fillStyle='rgba(255,255,255,.07)'; for(let i=0;i<XL.length;i++) mmg.fillRect(X(XL[i]-XW[i]/2),0,Math.max(1,XW[i]*sc),H); for(let i=0;i<ZL.length;i++) mmg.fillRect(0,Z(ZL[i]-ZW[i]/2),W,Math.max(1,ZW[i]*sc));`。(3) 建物ループの後にランドマーク：`for(const L of LMS){ const px=X(L.cx), pz=Z(L.cz); mmg.fillStyle=L.fell?'rgba(141,162,180,.8)':'#ffd166'; mmg.beginPath(); mmg.arc(px,pz,W*.012,0,6.283); mmg.fill(); }`（cx/cz は hud-04 の追加。無ければ ids から計算）。(4) 火災：`mmg.arc(X(f.x),Z(f.z),3,0,6.283)` の半径を `(2.5+Math.sin(performance.now()*.01)*1.2)*W/420` に。(5) 方位目盛：外周に `for(let a=0;a<360;a+=30)` で短い線、0° は `N` 文字。(6) `#mmLbl` 更新：`updHUD` の 10Hz ゲート内で `document.getElementById('mmLbl').textContent='N '+String(Math.round(hd)).padStart(3,'0')+'°　x '+Math.round(camera.position.x)+'  z '+Math.round(camera.position.z)` に。(7) CSS：`#minimap{…width:210px;height:210px…}` を `width:calc(210px*var(--hs));height:calc(210px*var(--hs))` に。",
+  "anchors": [
+   "<div id=\"mmWrap\"><canvas id=\"minimap\" width=\"420\" height=\"420\"></canvas><div id=\"mmLbl\">MAP　N↑</div></div>",
+   "mmg.fillStyle='rgba(6,10,16,.82)'; mmg.fillRect(0,0,W,H);",
+   "function resize(){",
+   "function drawMinimap(){"
+  ],
+  "est_lines": 60,
+  "perf_cost": "無視できる：6.7Hz の 2D 描画に道路 10 本とピン十数個が増えるだけ。バッキング 420→最大 ~570px。",
+  "impact": 7,
+  "risk": "`PCDBG.minimap` は canvas を返すだけなので互換。`XL/XW/ZL/ZW` は `let` で genCity ごとに差し替わるので描画時に参照すれば常に現マップ。"
+ },
+ "hud-07-chain-ring": {
+  "id": "hud-07-chain-ring",
+  "title": "連鎖表示の再設計：中央の巨大数字をやめ、右上スコア直下の「倍率リング」＋ランクアップ時だけ中央にバースト",
+  "category": "ui",
+  "description": "`#chain` は画面中央上（top:16%）に 68px の数字と帯を常時出し、`#banner`（top:26%）と重なって狙いの邪魔になる。連鎖は「スコア倍率」なので右上の SCORE に隣接させ、残り時間（S.comboT）を SVG の円弧で表す。ランクが上がった瞬間（GOOD→GREAT…）だけ中央に 0.7 秒のバースト文字を出して高揚感を残す。画面中央が常に見えるようになり、3024×1964 の広い画面で情報が「隅に整列」する。",
+  "implementation": "(1) body_pc.html：`<div id=\"chain\">` ブロックを `#scoreWrap` 内の `#scoreSub` の直後に移し、中身を `<div id=\"chain\"><svg viewBox=\"0 0 64 64\"><circle class=\"bg\" cx=\"32\" cy=\"32\" r=\"28\"/><circle id=\"chainArc\" cx=\"32\" cy=\"32\" r=\"28\"/></svg><div id=\"chainN\">×2</div><div id=\"chainRank\"></div></div>` に。`#chainL`/`#chainBar` は削除（`elChainBar` は `(document.getElementById('chainBar')||{}).firstElementChild` で null 安全なので JS は壊れない）。(2) CSS：`#chain{position:absolute;left:50%;top:16%;…}` を `#chain{position:relative;display:inline-grid;place-items:center;width:84px;height:84px;margin-top:8px;opacity:0;transition:opacity .15s} #chain svg{position:absolute;inset:0;transform:rotate(-90deg)} #chain circle{fill:none;stroke-width:4} #chain .bg{stroke:rgba(255,255,255,.12)} #chainArc{stroke:currentColor;stroke-dasharray:176;stroke-dashoffset:0;stroke-linecap:round;transition:stroke-dashoffset .08s linear} #chainN{font-size:26px;font-weight:900;…} #chainRank{position:absolute;bottom:-14px;font-size:9px;letter-spacing:.3em}` に置換。(3) ui_pc.js `updScoreUI` の `if(elChainBar) elChainBar.style.transform='scaleX('+…+')';` を `chainArc.style.strokeDashoffset=(176*(1-Math.max(0,Math.min(1,S.comboT)))).toFixed(1); elChain.style.color=col;` に（`col` 決定の後へ移動）。`elChainN.style.fontSize` の 50/60/68px を 20/24/26px に。(4) バースト：`showCombo()` 内で `let nm=…CHAINRANK から`、`if(nm!==lastRankNm){ lastRankNm=nm; const d=document.createElement('div'); d.className='rburst'; d.style.color=col; d.innerHTML='×'+S.combo+'<small>'+nm+'</small>'; el.hud.appendChild(d); d.animate([{transform:'translate(-50%,-50%) scale(1.8)',opacity:0,filter:'brightness(3)'},{transform:'translate(-50%,-50%) scale(1)',opacity:1,offset:.25},{opacity:1,offset:.7},{transform:'translate(-50%,-50%) scale(.9) translateY(-30px)',opacity:0}],{duration:700,easing:'cubic-bezier(.2,.9,.3,1)'}).onfinish=()=>d.remove(); }`。CSS `.rburst{position:absolute;left:50%;top:22%;font-size:calc(64px*var(--hs));font-weight:900;text-shadow:0 0 30px currentColor,0 4px 0 #000;pointer-events:none}`。`lastRankNm` は `S.combo===1` のとき（`hideCombo()`）で空にする。",
+  "anchors": [
+   "#chain{position:absolute;left:50%;top:16%;",
+   "<div id=\"chain\">",
+   "if(elChainBar) elChainBar.style.transform='scaleX('+Math.max(0,Math.min(1,S.comboT))+')';",
+   "function showCombo(){",
+   "function hideCombo(){}"
+  ],
+  "est_lines": 80,
+  "perf_cost": "無視できる：SVG 属性 1 つの更新/フレーム＋ランクアップ時のみ要素生成。",
+  "impact": 7,
+  "risk": "`elChainBar` 参照の null 安全を保つこと。`#scoreWrap` は `text-align:right` なので `#chain` は `margin-left:auto` で右寄せ。`#pops`（right:20px;top:96px）と重なるので pops の top を 190px に下げる。"
+ },
+ "hud-08-score-hierarchy": {
+  "id": "hud-08-score-hierarchy",
+  "title": "スコア列の情報階層を正す：主＝SCORE（ロール表示）、副＝トン数、倒壊棟数はバー、ベスト記録との差分を常時表示",
+  "category": "ui",
+  "description": "右上の最大の数字はトン数（242t）で、ランクと保存される記録を決める SCORE は 14px の脇役。プレイヤーが伸ばすべき数値が主役になっていない。SCORE を 40px のロール（既存のトン数と同じ追従アニメ）にし、トン数を副として下に、`bldCount` は細いバー＋数字に、さらに「BEST 1.2M　あと 340k」をマップ×モードのベスト（`loadBest()`）から常時出し、超えた瞬間に金色の NEW RECORD へ変える。結果画面まで待たずに目標が見える。",
+  "implementation": "(1) body_pc.html の `<div id=\"scoreBig\">0<span>t</span></div>` を `<div id=\"scoreBig\">0<span>SCORE</span></div><div id=\"scoreTon\">0<span>t</span></div><div id=\"bestLine\">—</div>` に、`#scoreSub` 行は残して CSS で `display:none`（互換のため）。CSS：`#scoreTon{margin-top:6px;font-size:15px;font-weight:900;color:var(--amber);font-variant-numeric:tabular-nums} #bestLine{margin-top:6px;font-size:10.5px;letter-spacing:.14em;color:var(--dim);font-weight:800} #bestLine.over{color:var(--gold);text-shadow:0 0 12px rgba(255,190,60,.8)} #bldCount{…}` に `#bldBar{width:120px;height:3px;margin:4px 0 0 auto;background:rgba(255,255,255,.12)} #bldBar i{display:block;height:100%;background:var(--cyan);transition:width .3s}` を追加。(2) ui_pc.js `updScoreUI`：既存の `shownTon` ロールはそのまま `elTon=document.getElementById('scoreTon')` に出力し、`elScore` には新たに `shownScoreF`（float）を同じ式で S.score に追従させ `elScore.innerHTML=fmtScore(Math.round(shownScoreF))+'<span>SCORE</span>'`。`if(elScoreSub && S.score!==shownScore){…}` はそのまま（非表示だが保持）。(3) ベスト：`let bestK='',bestO=null;` を置き、10Hz の `updHUD` ゲート内で `const k=bestKey(); if(k!==bestK){ bestK=k; bestO=loadBest(); }`（`bestKey`/`loadBest` は IIFE 内で参照可）。表示：`bestO? (S.score>bestO.score? 'NEW RECORD　'+fmtScore(S.score-bestO.score)+' 更新' : 'BEST '+fmtScore(bestO.score)+'　あと '+fmtScore(bestO.score-S.score)) : 'BEST —'`、`classList.toggle('over', bestO&&S.score>bestO.score)`。(4) `PCDBG.resetFx` の `elScore.innerHTML=fmtTon(shownTon)` を `elTon.innerHTML=fmtTon(shownTon); shownScoreF=S.score; elScore.innerHTML=fmtScore(S.score)+'<span>SCORE</span>'` に。(5) `flushPops` の `elScore.classList.add('hot')` はそのまま SCORE が光る（`#scoreBig.hot` の CSS を流用）。",
+  "anchors": [
+   "<div id=\"scoreBig\">0<span>t</span></div>",
+   "if(elScoreSub && S.score!==shownScore){ shownScore=S.score; elScoreSub.innerHTML=fmtScore(S.score)+'<span>SCORE</span>'; }",
+   "elScore.innerHTML=fmtTon(shownTon);",
+   "function loadBest(){",
+   "resetFx:()=>{ flashV=0; el.flash.style.opacity=0; shownTon=killedVox*TON_PER_VOX; elScore.innerHTML=fmtTon(shownTon); popVox=0; el.banner.getAnimations().forEach(a=>a.cancel()); },"
+  ],
+  "est_lines": 60,
+  "perf_cost": "無視できる：localStorage 読みはキーが変わった時だけ。ロール計算は数値 1 つ追加。",
+  "impact": 7,
+  "risk": "`resetFx`（検証フック）と `genCity` の `shownScore=-1` 初期化との整合に注意。`fmtScore` は `<small>` を含む HTML を返すので `#scoreBig small` の CSS を `#scoreBig span` と同様に追加する。"
+ },
+ "hud-09-mode-ring-alert": {
+  "id": "hud-09-mode-ring-alert",
+  "title": "モード HUD と街の警戒段階の視覚化：円形タイマー／残弾ピップ、最後の 10 秒の脈動、cityAlert に連動したビネット",
+  "category": "ui",
+  "description": "60 秒モードは数字が赤くなるだけ、3 発モードは「残り弾数 2」の文字だけで、残り時間の割合も撃った弾も体感できない。`#runBig` を SVG リング（残り割合）で囲み、3 発モードはリングの代わりに 3 つのピップ（撃つと消える）に。残り 10 秒は数字と画面端の赤いビネットが心拍のように脈動する。さらに `updCityReaction` の警戒段階（cityAlert 1〜3）は現状バナー 1 回きりなので、`#vig` を段階色（1:琥珀の薄い縁、2:赤の縁、3:赤＋ゆっくり明滅）にし、`#modeTag` に「FREE PLAY · ALERT Lv2」を併記して「街が反応している」ことを HUD に常駐させる。",
+  "implementation": "(1) body_pc.html の `<div id=\"runHud\"><div id=\"runBig\">60.0</div><div id=\"runLbl\">残り秒</div></div>` を `<div id=\"runHud\"><svg id=\"runRing\" viewBox=\"0 0 100 100\"><circle class=\"bg\" cx=\"50\" cy=\"50\" r=\"45\"/><circle id=\"runArc\" cx=\"50\" cy=\"50\" r=\"45\"/></svg><div id=\"runBig\">60.0</div><div id=\"runPips\"></div><div id=\"runLbl\">残り秒</div></div>` に。CSS：`#runHud{position:relative;display:inline-grid;place-items:center;width:calc(96px*var(--hs));height:calc(96px*var(--hs))}`、`#runRing{position:absolute;inset:0;transform:rotate(-90deg)}`、`#runArc{fill:none;stroke:var(--cyan);stroke-width:3;stroke-dasharray:283;transition:stroke-dashoffset .1s linear}`、`#runHud.urg #runArc{stroke:#ff5a6a}`、`#runPips i{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--cyan);margin:0 3px} #runPips i.off{background:rgba(255,255,255,.15)}`、`@keyframes beat{0%,100%{transform:scale(1)}30%{transform:scale(1.08)}} #runBig.urg{animation:beat 1s ease-in-out infinite}`。(2) ui_pc.js `updHUD` の 10Hz ゲート内に：`const M=modeDef(); const rh=document.getElementById('runHud'); if(M.sec){ const p=runStarted?runLeft/M.sec:1; runArc.style.strokeDashoffset=(283*(1-p)).toFixed(1); runPips.innerHTML=''; rh.classList.toggle('urg',runStarted&&runLeft<10); } else if(M.shots){ runArc.style.strokeDashoffset='283'; const n=shotsLeft(); runPips.innerHTML=Array.from({length:M.shots},(_,i)=>'<i class=\"'+(i<n?'':'off')+'\"></i>').join(''); }`（`runLeft`/`runStarted`/`shotsLeft` は IIFE 内）。(3) ビネット：`#vig{position:absolute;inset:0;pointer-events:none;z-index:9;…}` の後に `#vig.a1{box-shadow:inset 0 0 120px rgba(255,181,61,.18)} #vig.a2{box-shadow:inset 0 0 160px rgba(255,61,127,.28)} #vig.a3{box-shadow:inset 0 0 220px rgba(255,40,60,.4);animation:vigPulse 2.4s ease-in-out infinite} #vig.urg{box-shadow:inset 0 0 200px rgba(255,40,60,.45);animation:beatVig 1s ease-in-out infinite}` を追加し、`updHUD` で `vig.className='a'+cityAlert+((M.sec&&runStarted&&runLeft<10)?' urg':'')`。(4) `if(el.modeTag) el.modeTag.textContent=modeDef().lbl;` を `…=modeDef().lbl+(cityAlert?'  ·  ALERT Lv'+cityAlert:'')` に。",
+  "anchors": [
+   "<div id=\"runHud\"><div id=\"runBig\">60.0</div><div id=\"runLbl\">残り秒</div></div>",
+   "big.classList.toggle('urg', runStarted && runLeft<10);",
+   "#vig{position:absolute;inset:0;pointer-events:none;z-index:9;",
+   "if(el.modeTag) el.modeTag.textContent=modeDef().lbl;",
+   "if(lv===3){ banner('都市機能 停止','CITY DOWN'); Snd.quake(.7,8); }"
+  ],
+  "est_lines": 60,
+  "perf_cost": "小：box-shadow アニメーションは全画面要素の再描画になるため、`#vig` に `will-change:box-shadow` は付けず、代わりに `opacity` アニメの擬似要素 2 枚（`::before` 常時色、`::after` 脈動）で実装すればコンポジタのみで済む。",
+  "impact": 7,
+  "risk": "`updRun` 側の `#runBig`/`#runLbl` 更新はそのまま動く（要素 id を維持）。`runHud.on` の display 切替（setMode）も維持。"
+ },
+ "hud-14-banner-layering": {
+  "id": "hud-14-banner-layering",
+  "title": "中央バナー・原因トースト・武器トーストの重なり整理：帯の統一スタイルと優先度キュー",
+  "category": "ui",
+  "description": "中央には `#banner`（top:26%）・`#cause`（50%+54px）・`#wtoast`（bottom:96px）・`#hint`・`#chain` が別々のルールで出て、連鎖中は「切断 / SEVERED」「大 崩 壊」「ランドマーク名」が 1.8 秒ごとに上書きされ、読めないまま消える。`banner()` に優先度つきキュー（lm > milestone/alert > weapon > cut）を入れ、同優先度は 0.6 秒以内の連投を 1 本に畳み、帯の見た目を「細い横罫＋大文字＋日本語」の統一デザイン（上下に 1px のシアン／金のライン、背景に 60% 幅の暗いグラデ）にする。`#cause` は hud-03 のフィードへ送る前提で中央から外し、照準付近の視界を空ける。",
+  "implementation": "(1) ui_pc.js `function banner(t,u,cls,dur){` を次のように置換：`const BQ=[]; let bannerBusyT=0; function banner(t,u,cls,dur){ const pr=cls==='lm'?3:(/MILESTONE|ALERT|EMERGENCY|CITY DOWN|MASS COLLAPSE|TIME UP|ALL SHOTS/.test(u||'')?2:(cls==='w'?1:0)); const now=performance.now(); if(BQ.length&&BQ[BQ.length-1].t===t&&now-BQ[BQ.length-1].at<600) return; BQ.push({t,u,cls,dur:dur||1800,pr,at:now}); BQ.sort((a,b)=>b.pr-a.pr); if(BQ.length>3) BQ.length=3; pumpBanner(); } function pumpBanner(){ if(bannerBusyT>performance.now()||!BQ.length) return; const b=BQ.shift(); bannerBusyT=performance.now()+Math.min(b.dur,1400); el.banner.classList.toggle('lm',b.cls==='lm'); el.banner.querySelector('.t').textContent=b.t; el.banner.querySelector('.u').textContent=b.u; el.banner.animate([…既存の 4 キーフレーム…],{duration:b.dur,easing:'cubic-bezier(.2,.9,.3,1)'}).onfinish=pumpBanner; setTimeout(pumpBanner, Math.min(b.dur,1400)+20); }`（既存の `bannerLmT` によるランドマーク優先は `pr` に吸収）。(2) 生成物の兵装バナー `banner('絨毯爆撃','CARPET BOMBING');` など武器系は第 3 引数 `'w'` を足す（`rep` で 1 件ずつ：`banner('重力爆弾','GRAVITY BOMB')`, `banner('軌道砲 照射','ORBITAL CANNON')`, `banner('隕石 落下','METEOR INBOUND')`, `banner('戦術核','TACTICAL NUKE')`, `banner('焼夷弾','INCENDIARY')`, `banner('破壊球','HAKAI')`, `banner('起爆','DETONATION')`）。(3) CSS：`#banner .t{…}` に `padding:6px 28px;background:linear-gradient(90deg,transparent,rgba(3,5,9,.6) 20%,rgba(3,5,9,.6) 80%,transparent);border-top:var(--hair) solid rgba(79,227,240,.5);border-bottom:var(--hair) solid rgba(79,227,240,.5);display:inline-block` を追加、`#banner.lm .t` は金のライン。`#cause{…top:calc(50% + 54px)…}` を `top:auto;bottom:calc(200px*var(--hs));font-size:11px` に移動（hud-03 導入後はフィードに統合して `#cause` を非表示にしてもよい）。(4) `#hud.off > *:not(#xh):not(#xhInfo):not(#banner):not(#cause)` はそのまま。",
+  "anchors": [
+   "function banner(t,u,cls,dur){",
+   "#banner{position:absolute;left:0;right:0;top:26%;text-align:center;opacity:0;pointer-events:none;}",
+   "#cause{position:absolute;left:50%;top:calc(50% + 54px);transform:translateX(-50%);font-size:12px;font-weight:800;letter-spacing:.08em;",
+   "banner('絨毯爆撃','CARPET BOMBING');",
+   "banner('戦術核','TACTICAL NUKE'); break;",
+   "if(n>2200) banner('大 崩 壊','MASS COLLAPSE');"
+  ],
+  "est_lines": 60,
+  "perf_cost": "無視できる：配列 3 要素のキューと既存の WAAPI。",
+  "impact": 6,
+  "risk": "`PCDBG.resetFx` が `el.banner.getAnimations().forEach(a=>a.cancel())` を呼ぶため、キューも同時に空にする（`BQ.length=0; bannerBusyT=0`）。ランドマーク陥落（pr3）が必ず表示されることを suite のランドマーク検査（`LMS()` の fell）とは別に目視で確認。"
+ },
+ "ob2_input_style": {
+  "id": "ob2_input_style",
+  "title": "初回起動の「操作スタイル」選択（キーボードのみ／マウス／トラックパッド／パッド）",
+  "category": "onboarding",
+  "description": "PCS.mlook（lock/hover/drag）は設定の奥にあり、MacBook のトラックパッドで遊ぶ人は「クリックでロック→指を離すと止まる」で最初に躓く。タイトルを初めて開いたときに 4 択のカードを出し、選択で mlook・感度・キーヒント文を一括設定する。トラックパッド＝hover、マウス＝lock、キーボードのみ＝drag（誤ロック防止）、パッド＝そのまま。1 回答えれば二度と出ず、設定メニューから変更可。",
+  "implementation": "1) body: `<div id=\"tBtns\">` の直前に `<div id=\"tStyle\"><div class=\"q\">どれで遊びますか？（あとで設定から変更できます）</div><div class=\"row\"><button class=\"pb\" id=\"tsKey\">⌨ キーボードだけ</button><button class=\"pb\" id=\"tsPad\">▭ トラックパッド</button><button class=\"pb\" id=\"tsMouse\">🖱 マウス</button><button class=\"pb\" id=\"tsGp\">🎮 ゲームパッド</button></div></div>` を追加。css: `#tStyle{display:none;margin-top:16px}` `#tStyle.on{display:block}` と `#tStyle.on ~ #tBtns{display:none}`（選ぶまで START を隠す）。\n2) ui: `const PCS={...mlook:'lock'};` を `...,mlook:'lock',style:''};` に拡張（style: key|pad|mouse|gp）。`function showTitle(){` 内の `knavOpen(titleEl,'tStart');` の前で `const st=document.getElementById('tStyle'); st.classList.toggle('on',!PCS.style); if(!PCS.style){ knavOpen(titleEl,'tsKey'); return; }`。\n3) ui: 4 つのボタンに `applyStyle(s)` を登録：`{key:{mlook:'drag',sens:5},pad:{mlook:'hover',sens:4},mouse:{mlook:'lock',sens:5},gp:{mlook:'lock',sens:5}}` を PCS に代入し savePCS(); `tStyle` を閉じて `knavOpen(titleEl,'tStart')`; wToast で選択結果（例「トラックパッド：指を動かすだけで視点が動きます。クリックで発射」）。\n4) ui: `function updKeyHint(){` の末尾文を style で分岐（pad なら「トラックパッド 視点」、mouse なら「クリックでロック」、key なら省略）。\n5) ui: `  if(!['lock','hover','drag'].includes(PCS.mlook)) PCS.mlook='lock';` の次行で `if(!['','key','pad','mouse','gp'].includes(PCS.style)) PCS.style='';`。\n6) Enter/Space 即スタートの条件 `(!KNAV.lastId||KNAV.lastId==='tStart')` は、tStyle 表示中は lastId が tsKey 等になるので自然に無効化される（確認のみ）。",
+  "anchors": [
+   "<div id=\"tBtns\">",
+   "function showTitle(){",
+   "const PCS={q:'auto',scale:1,fov:75,sens:5,invY:false,ao:true,snd:true,fx:1,hud:true,mlook:'lock'};   // mlook: lock | hover | drag",
+   "  if(!['lock','hover','drag'].includes(PCS.mlook)) PCS.mlook='lock';",
+   "function updKeyHint(){",
+   "    if(ov===titleEl && (code==='Enter'||code==='Space') && !rep && (!KNAV.lastId||KNAV.lastId==='tStart')){ startGame(); e.preventDefault(); return; }"
+  ],
+  "est_lines": 60,
+  "perf_cost": "無視できる（タイトル時のみの DOM）",
+  "impact": 8,
+  "risk": "低。既存の保存 tt_pc_v1 に style が無い人は初回扱いになり 1 度だけ出る。検証スイートが tStart を即押す経路（KNAV.lastId==='tStart'）を前提にしている場合は probe 側で PCS.style を事前設定する必要がある"
+ },
+ "in1_hover_edge": {
+  "id": "in1_hover_edge",
+  "title": "ホバー視点の画面端ターンと、キー視点速度／ホバー感度の分離",
+  "category": "input",
+  "description": "00_mac で入った hover モードは movementX をそのまま使うため、トラックパッドで指を右へ滑らせ続けても OS カーソルが画面右端で止まった時点で視点が止まる（ロック無しの宿命）。カーソルが端 6% 以内にある間は一定速度で回り続ける「端ターン」を加えると、トラックパッドで 360° 見回せる。あわせて感度は 1 つ（PCS.sens）しかなく、キー視点（KEYLOOK_PX 固定 1050）とマウス／ホバー倍率を別々に調整できないので、「キー視点の速さ」「ホバー倍率」を設定に分ける。",
+  "implementation": "1) ui: `const KEYLOOK_PX=1050, CUT_PX=720, PADLOOK_PX=1400;` を `const KEYLOOK_PX0=1050, CUT_PX=720, PADLOOK_PX=1400; function KEYLOOK_PX(){ return KEYLOOK_PX0*(PCS.ksens/5); }` に変え、`const px=(CUT.on?CUT_PX:KEYLOOK_PX)*dt;` を `(CUT.on?CUT_PX:KEYLOOK_PX())*dt` に。PCS に `ksens:5, hsens:5` を追加し applyPCS の clamp 行に `PCS.ksens=clampN((+PCS.ksens||5)|0,1,10); PCS.hsens=clampN((+PCS.hsens||5)|0,1,10);`。\n2) ui: hover 行 `  else if(PCS.mlook==='hover' && !PTR.has('m')) lookPx(e.movementX||0,e.movementY||0);` を `lookPx((e.movementX||0)*(PCS.hsens/5),(e.movementY||0)*(PCS.hsens/5)); hovX=e.clientX/window.innerWidth; hovY=e.clientY/window.innerHeight;` に。mousemove ハンドラの外に `let hovX=.5,hovY=.5;` を追加。\n3) ui: readKeys() の `  const zt=(zoomHeld||zoomToggle||PAD.zoom)?1:0;` の直前に端ターン：`if(PCS.mlook==='hover' && mouseUsed && !PTR.has('m')){ const E=.06; const ex=hovX<E?-(E-hovX)/E:(hovX>1-E?(hovX-(1-E))/E:0), ey=hovY<E?-(E-hovY)/E:(hovY>1-E?(hovY-(1-E))/E:0); if(ex||ey) lookPx(ex*900*dt*(PCS.hsens/5), ey*600*dt*(PCS.hsens/5)); }`（ウィンドウ外に出た時は mouseleave で hovX=hovY=.5 に戻す）。\n4) body: 「視点の速さ」行を 3 行に：`<span class=\"lb\">マウス視点の速さ</span>`（既存 pmSensM/P）、`<span class=\"lb\">キー視点の速さ</span>` pmKsM/pmKsV/pmKsP、`<span class=\"lb\">ホバー倍率</span>` pmHsM/pmHsV/pmHsP。ui: `document.getElementById('pmSensM').addEventListener(` の並びに同形式のハンドラを追加、renderMenu の `document.getElementById('pmSensV').textContent=PCS.sens;` の後に ksens/hsens の表示。\n5) 端ターン中は照準が流れるので、#xh に `.edge` クラスを付けて縁を薄くする（css 2 行）。",
+  "anchors": [
+   "const KEYLOOK_PX=1050, CUT_PX=720, PADLOOK_PX=1400;",
+   "  if(Math.abs(keyLook.x)>.003||Math.abs(keyLook.y)>.003){ const px=(CUT.on?CUT_PX:KEYLOOK_PX)*dt; lookPx(keyLook.x*px, keyLook.y*px); }",
+   "  else if(PCS.mlook==='hover' && !PTR.has('m')) lookPx(e.movementX||0,e.movementY||0);",
+   "<div class=\"row\"><span class=\"lb\">視点の速さ</span><button class=\"pb sm\" id=\"pmSensM\">−</button><span id=\"pmSensV\">5</span><button class=\"pb sm\" id=\"pmSensP\">＋</button>",
+   "document.getElementById('pmSensM').addEventListener('click',e=>{ e.stopPropagation(); PCS.sens=clampN(PCS.sens-1,1,10); savePCS(); renderMenu(); });"
+  ],
+  "est_lines": 55,
+  "perf_cost": "無視できる（readKeys 内の数回の比較）",
+  "impact": 8,
+  "risk": "中。端ターンはカーソルが UI ボタン（武器バー・起爆）上にある時も回るので、uiBlocked() と `e.target.closest('button')` の判定を hovX 更新側で尊重する。CUT.on 中は端ターンを無効にする（線が伸び続ける）"
+ },
+ "ui1_menu_tabs": {
+  "id": "ui1_menu_tabs",
+  "title": "設定メニューのタブ化（設定／マップ・モード／街）と「初期値に戻す」",
+  "category": "ui",
+  "description": "pmenu は 1 枚の長いシートに 画質 4 行・操作 4 行（00_mac で 5 行）・モード・マップ・街 が縦に並び、1512×982 論理解像度の 14 インチではスクロールが発生し、矢印ナビ（knavMove は最寄りボタン探索）が意図しない行へ飛ぶ。タブ 3 枚にして 1 画面に収め、Tab キー／Q・E でタブ切替、ヘッダに現在のスコア・SEED を常時表示する。さらに「設定を初期値に戻す」が無く、感度や解像度スケールを触り壊した人が戻れないので追加する。",
+  "implementation": "1) body: `<h3>MENU <span class=\"hk\">矢印キーで移動 ／ Enter で決定 ／ Esc で閉じる</span>...` の直後に `<div id=\"pmTabs\"><button class=\"pb tab on\" data-t=\"set\">設定 <kbd>Tab</kbd></button><button class=\"pb tab\" data-t=\"play\">マップ・モード</button><button class=\"pb tab\" data-t=\"city\">街</button></div>` を追加。`<div class=\"row lbl\">画質</div>` から `<div class=\"row lbl\">モード</div>` の直前までを `<div class=\"pmPage\" data-p=\"set\">…</div>` で包み、モード＋マップを `data-p=\"play\"`、街行を `data-p=\"city\"` で包む（between ではなく B() の完全一致置換 3 箇所で開始／終了タグを差し込む）。\n2) css: `.pmPage{display:none}.pmPage.on{display:block}#pmTabs{display:flex;gap:6px;margin-bottom:6px}.pb.tab{flex:0 0 auto}.pb.tab.on{border-color:var(--cyan);color:var(--cyan)}`。\n3) ui: `let pmTab='set'; function setPmTab(t){ pmTab=t; pmenu.querySelectorAll('.pmPage').forEach(p=>p.classList.toggle('on',p.dataset.p===t)); pmenu.querySelectorAll('.pb.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===t)); if(KNAV.root===pmenu) knavOpen(pmenu,null); }` を `function renderMenu(){` の直前に。renderMenu の末尾 `if(KNAV.root===pmenu) knavOpen(pmenu,KNAV.lastId);` の前で `setPmTab(pmTab)`（knavItems は offsetParent で非表示を除外するので隠れたページのボタンへは移動しない）。\n4) ui: キー処理 `    if(code==='Tab'){ if(ov===wpanel) closePanel(); e.preventDefault(); return; }` を `if(code==='Tab'){ if(ov===wpanel) closePanel(); else if(ov===pmenu) setPmTab(['set','play','city'][(['set','play','city'].indexOf(pmTab)+(e.shiftKey?2:1))%3]); e.preventDefault(); return; }` に。パッドは LB/RB（edge(4)/edge(5)）を overlay 分岐で同じ関数へ。\n5) 「初期値に戻す」：body の `<button class=\"pb sub\" id=\"pmTitle\">タイトルへ</button>` の直前に `<button class=\"pb sub\" id=\"pmReset\">設定を初期値に戻す</button>`、ui で `PCS` を `const PCS_DEF={...}` のコピーから再代入→ savePCS(); applyPCS(); renderMenu(); wToast('設定を初期値に戻しました')。\n6) ヘッダ：`#pmSeed` の内容に `fmtScore(S.score)+' SCORE'` と `modeDef().n` を足す（pmSeed の textContent 行を置換）。",
+  "anchors": [
+   "  <h3>MENU <span class=\"hk\">矢印キーで移動 ／ Enter で決定 ／ Esc で閉じる</span><button id=\"pmClose\" aria-label=\"閉じる\">✕</button></h3>",
+   "<div class=\"row lbl\">画質</div>",
+   "<div class=\"row lbl\">モード</div>",
+   "function renderMenu(){",
+   "    if(code==='Tab'){ if(ov===wpanel) closePanel(); e.preventDefault(); return; }",
+   "function knavItems(){ if(!KNAV.root) return []; return Array.from(KNAV.root.querySelectorAll('button')).filter(b=>!b.disabled && b.offsetParent!==null); }",
+   "  document.getElementById('pmSeed').textContent='SEED '+citySeed+'　·　'+MAPNAMES[MAPID]+'　·　'+modeDef().lbl+'　·　'+(POST.on?(POST.hdr?'HDR':'8bit')+(POST.msaa?' MSAA':'')+(POST.aoOn?' SSAO':'')+(WET.on?' 反射':''):'ポスト処理なし');"
+  ],
+  "est_lines": 70,
+  "perf_cost": "無視できる（メニュー表示時の DOM 切替のみ）",
+  "impact": 7,
+  "risk": "中。00_mac が差し込んだ pmLookRow 行や他モジュールが body の行を置換するため、ページ包みの差し込み位置は「行の完全一致」で行い、feat の適用順（番号）を 00_mac より後にする。knavOpen(pmenu,'pmResume') は set ページにあるので初期フォーカスは維持される"
+ },
+ "ui4_screens_consistency": {
+  "id": "ui4_screens_consistency",
+  "title": "リザルト／ポーズ／タイトルの一貫性：リザルトに「タイトルへ」「設定」、SEED と技巧率の説明、Esc の統一",
+  "category": "ui",
+  "description": "リザルトは rAgain/rNewCity/rNext の 3 つだけで、モードやマップを変えたい・タイトルに戻りたい時はいったん「同じ街でもう一度」を押してから Esc を押すしかない。しかもリザルト中の Esc は keydown 側で `!resultOn` により無視され、ポーズ（Esc=メニュー）・タイトル（Esc=設定）と挙動が違う。ボタン様式も .rBtn と .pb で二系統。リザルトに「設定・マップ・モード（Esc）」「タイトルへ」を足し、SEED／マップ／モードの行と「技巧率＝直撃1・倒壊1.5・誘爆2・巻き込み3 の平均。核は 0」の 1 行説明を出し、ランク D の『BRUTE』に和名「力まかせ」を添える。ボタンは .pb に統一して knav の見た目も揃える。",
+  "implementation": "1) body: `<button class=\"rBtn\" id=\"rNext\">次のマップ</button>` の後に `<button class=\"rBtn sub\" id=\"rMenu\">設定・マップ・モード <kbd>Esc</kbd></button><button class=\"rBtn sub\" id=\"rTitleBtn\">タイトルへ</button>`。`<div id=\"rKeys\">←→ で選択　Enter で決定</div>` を `<div id=\"rKeys\">矢印で選択　Enter で決定　Esc で設定</div>` に。`<div id=\"rScoreWrap\">...` の前に `<div id=\"rSeed\">—</div>`（css: #pmSeed と同じ体裁）。\n2) ui: `document.getElementById('rNext').addEventListener(` の並びに\n```js\ndocument.getElementById('rMenu').addEventListener('click',e=>{ e.stopPropagation(); openMenu('result'); });\ndocument.getElementById('rTitleBtn').addEventListener('click',e=>{ e.stopPropagation(); hideResult(); genCity(MAPID,citySeed); spawnOverview(); showTitle(); });\n```\nopenMenu は `if(!titleOn) setPaused(true,...)` で resultOn 中でも開けるが、pmResume（closeMenu）が setPaused(false) してもリザルトは残る（resultOn のまま）ので問題なし。pmModes/pmMaps のクリックは genCity → closeMenu の順なので、その前に `if(resultOn) hideResult();` を renderMenu の両ハンドラ先頭に足す。\n3) ui: keydown の `  if(code==='Escape'||code==='KeyP'){ if(!rep && !booting && !resultOn) openMenu('menu'); e.preventDefault(); return; }` は overlay 分岐の後に来るため resultOn 中は topOverlay()===resultEl で先に overlay 分岐に入り closeTop() が呼ばれる。closeTop に `if(ov===resultEl){ openMenu('result'); return; }` を追加（タイトルと同じ流儀）。\n4) rep（本体 showResult）: `  const ratio=styleRatio();` の後に `{ const e=document.getElementById('rSeed'); if(e) e.textContent='SEED '+citySeed+'　·　'+MAPNAMES[MAPID]+'　·　'+M.lbl; }`（M は後で定義されるので modeDef().lbl を使う）。`<span class=\"k\">技巧率</span>` を `<span class=\"k\">技巧率 <small>倒壊・巻き込みで上がる／核で下がる</small></span>` に、`[-1,  'D','BRUTE',     '#8f869d'],` を `[-1,  'D','BRUTE ／ 力まかせ',     '#8f869d'],`（他ランクも同様に和名を添える：MASTER／名人、EXCELLENT／秀逸、GREAT／上出来、GOOD／良）。\n5) css: `.rBtn` の規則を `.pb` と同じ角丸・高さに揃え、`.rBtn.sub{color:var(--dim);font-weight:700}` を追加。",
+  "anchors": [
+   "<button class=\"rBtn\" id=\"rNext\">次のマップ</button>",
+   "<div id=\"rKeys\">←→ で選択　Enter で決定</div>",
+   "document.getElementById('rNext').addEventListener('click',e=>{ e.stopPropagation(); hideResult(); genCity(MAPID+1); banner(MAPNAMES[MAPID],''); spawnOverview(); });",
+   "  if(code==='Escape'||code==='KeyP'){ if(!rep && !booting && !resultOn) openMenu('menu'); e.preventDefault(); return; }",
+   "  const ratio=styleRatio();",
+   "<span class=\"k\">技巧率</span>",
+   "  [-1,  'D','BRUTE',     '#8f869d'],",
+   "  <div id=\"rScoreWrap\"><div id=\"rScoreLbl\">SCORE</div><div id=\"rScore\">0</div><div id=\"rBest\">—</div></div>"
+  ],
+  "est_lines": 60,
+  "perf_cost": "無視できる",
+  "impact": 7,
+  "risk": "中。リザルト上にメニューを重ねる経路は未検証：pmRetry/pmNew/モード/マップ各ハンドラの先頭で hideResult() を呼ばないと resultOn のまま街が再生成される。probe で `showResult(); pc.key('Escape',true); pc.menuOpen()===true` と、モード変更後 `runState().resultOn===false` を確認する"
+ },
+ "ac1_effects_a11y": {
+  "id": "ac1_effects_a11y",
+  "title": "アクセシビリティ：演出の個別トグル（フラッシュ／揺れ／スロー）、reduced-motion 既定、色覚配慮パレット",
+  "category": "other",
+  "description": "「演出 標準／控えめ」は fxK 一つで flashDom・shake・slowMo・fovPunch を一括 0.5 倍にするだけで、白フラッシュ（光過敏）だけ切りたい人や、揺れだけ嫌な人に応えられない。OS の『視差効果を減らす』（prefers-reduced-motion）も見ていない。また照準・ミニマップはシアン／マゼンタ／琥珀で、赤緑系の色覚だと損傷（琥珀）と倒壊（マゼンタ）の区別が付きにくい。3 つの個別トグル＋色覚配慮（照準＝白／橙、ミニマップ＝青／橙／白、連鎖ランク色も）を設定の『効果』行へ追加し、初回は reduced-motion なら控えめを既定にする。",
+  "implementation": "1) ui: PCS に `flash:1, shakeK:1, slow:1, cb:false` を追加。`function flashDom(v){ flashV=Math.max(flashV,v*QUAL.fxK); }` を `function flashDom(v){ flashV=Math.max(flashV,v*QUAL.fxK*(PCS.flash?1:0)); }` に。rep（本体）: `function shake(v){` の直後の最初の行で `v*=PCS.shakeK;`（PCS は UI ブロックで後に定義されるが呼び出し時には存在する。`typeof PCS!=='undefined'` ガード）。`function slowMo(x){ ... }` を `function slowMo(x){ if(typeof PCS!=='undefined'&&!PCS.slow) return; slowT=...` に。\n2) ui: `document.getElementById('bFx').addEventListener(` の並びに bFlash/bShake/bSlow/bCB のトグル（PCS を反転→ savePCS → renderMenu）。body の `効果` 行の `<button class=\"pb\" id=\"bFx\">演出</button>` の後に `<button class=\"pb\" id=\"bFlash\">フラッシュ</button><button class=\"pb\" id=\"bShake\">揺れ</button><button class=\"pb\" id=\"bSlow\">スロー</button><button class=\"pb\" id=\"bCB\">色覚配慮</button>`。renderMenu の setTog 行に 4 つ追加。\n3) ui: applyPCS() 内、loadPCS() の直後で `if(!('fx' in savedObj)) { if(matchMedia('(prefers-reduced-motion: reduce)').matches){ PCS.fx=.5; PCS.flash=0; PCS.shakeK=.5; } }`（loadPCS が返す生オブジェクトで「未保存」を判定するため、loadPCS を `return o` に変えて受ける）。`document.documentElement.dataset.cb=PCS.cb?'1':''`。\n4) css: `:root{ --ink:...` の後に `:root[data-cb=\"1\"]{--cyan:#ffffff;--mag:#ff8c1a;--amber:#ffb300;--gold:#ffe36b;}`（照準 #xh .dot と .cutw は var 経由なので自動で追随）。ui: ミニマップの `    mmg.fillStyle = r<=0.15 ? 'rgba(255,61,127,.45)' : ...` を `const MMC=PCS.cb?['rgba(255,140,26,.6)','rgba(255,255,255,.75)','rgba(255,227,107,.95)','rgba(60,140,255,.55)']:['rgba(255,61,127,.45)','rgba(255,181,61,.8)','rgba(255,209,102,.95)','rgba(79,227,240,.5)']; mmg.fillStyle = r<=0.15?MMC[0]:(r<0.85?MMC[1]:(b.lm!==undefined?MMC[2]:MMC[3]));` に。CHAINRANK の色は cb 時に輝度差で読めるので据え置き。",
+  "anchors": [
+   "function flashDom(v){ flashV=Math.max(flashV,v*QUAL.fxK); }",
+   "function shake(v){",
+   "function slowMo(x){ slowT=Math.min(1.8, Math.max(slowT, x*(QUAL.fxK<1?0.5:1))); }   // 大きな事件だけ。連鎖中ずっと止まらないよう上限あり",
+   "document.getElementById('bFx').addEventListener('click',e=>{ e.stopPropagation(); PCS.fx=PCS.fx<1?1:0.5; QUAL.fxK=PCS.fx; savePCS(); renderMenu(); });",
+   "  --ink:#e8eff6; --dim:#8da2b4; --cyan:#4fe3f0; --mag:#ff3d7f; --amber:#ffb53d; --gold:#ffd166;",
+   "    mmg.fillStyle = r<=0.15 ? 'rgba(255,61,127,.45)' : (r<0.85 ? 'rgba(255,181,61,.8)' : (b.lm!==undefined?'rgba(255,209,102,.95)':'rgba(79,227,240,.5)'));",
+   "function applyPCS(){"
+  ],
+  "est_lines": 55,
+  "perf_cost": "無視できる（ミニマップは 0.15 秒ごと、配列参照が増えるだけ）",
+  "impact": 6,
+  "risk": "低〜中。shake/slowMo は UI ブロックより前で定義される本体関数なので PCS 参照にガードが要る。検証スイートの『フラッシュが出る』系の項目があれば PCS.flash=1 既定で影響なし"
+ },
+ "tx1_wording": {
+  "id": "tx1_wording",
+  "title": "日本語 UI 文言の品質パス（用語統一・意味の通る短文・単位）",
+  "category": "ui",
+  "description": "文言は概ね良いが、初見で意味が取れない箇所が残っている：HUD『0 塊 ／ 0 棟』（塊＝浮遊中の瓦礫の数だと分からない）、武器バーの『·0』『·0pt』（加点なしの意味）、結果の『技巧率』『BRUTE』、60秒モードのラベル『撃つと開始』、武器説明の『連射開始1回＝1発』、起動画面の『初期化中…』、起爆ボタン『起爆 X 0』。用語ゆれ（『視点をロック』『ポインタロック』『ロック（クリックで取得）』）も統一する。文言だけなので安全に短時間で効く。",
+  "implementation": "すべて完全一致置換（body/ui/rep）。\n- body: `<div id=\"dmgSub\"><b id=\"kChunk\">0</b> 塊 ／ <b id=\"kBld\">0</b> 棟</div>` → `<div id=\"dmgSub\">残存 <b id=\"kBld\">0</b> 棟　空中の塊 <b id=\"kChunk\">0</b></div>`（updHUD の参照 id は不変）。\n- css: `.q.nosc .n::after{content:\" ·0\";color:var(--mag);}` → `content:\" 加点なし\"`、`.w.nosc .n::after{content:\" ·0pt\";color:var(--mag);}` → `content:\" 加点なし\"`（.w の幅 84px に収まるよう font-size 9px を併記）。\n- rep: `      if(lbl) lbl.textContent=runStarted?'残り秒':'撃つと開始';` → `'残り秒':'最初の1発で開始'`。\n- rep: MODES の `d:'3発で何トン壊せるか。装薬は起爆1回で1発。'` → `d:'3発で何トン壊せるか。装薬は起爆1回、連射・照射は開始1回で1発。'`。WPN の機関砲 `連射開始1回＝1発。` → `連射の開始で1発と数える。`、レールガン `照射開始1回＝1発。` → `照射の開始で1発と数える。`（rep で WPN 行を完全一致）。\n- body: `<button id=\"det\">起爆 <kbd>X</kbd><span id=\"detN\">0</span></button>` → `<button id=\"det\"><kbd>X</kbd> 起爆　装薬 <span id=\"detN\">0</span></button>`。\n- body: 起動画面 `<div class=\"s\" id=\"bootMsg\">初期化中…</div>` → `読み込み中…`、タイトル説明 `<b>マウスがなくても遊べます</b>` 段落の『マウスを使う場合はクリックで視点をロック（Esc で解除）』→『マウスはクリックで視点を固定（Esc で解除）。トラックパッドは設定で「ホバー」に』。ui の `wToast('ポインタロックが使えないため…'` → 『視点の固定が使えないため、マウスはドラッグで視点を動かします』。メニュー `['lock','ロック（クリックで取得）']` → `['lock','固定（クリックで取得）']`。\n- ui: ランク名は ui4 と重複するので、ui4 を採用しない場合のみ `[-1,  'D','BRUTE',     '#8f869d'],` に和名を添える。\n- WHINT の `demo:'設置：<kbd>Space</kbd>（最大16）　起爆：<kbd>X</kbd>'` → 『設置：Space（最大16）　X で一斉起爆。片側に寄せると倒れる向きが決まる』。\n- 全体ルール：半角『/』は kbd 同士の区切り、全角『／』は文中の対比、に統一（#keys の kgrid を目視で揃える）。",
+  "anchors": [
+   "<div id=\"dmgSub\"><b id=\"kChunk\">0</b> 塊 ／ <b id=\"kBld\">0</b> 棟</div>",
+   ".q.nosc .n::after{content:\" ·0\";color:var(--mag);}",
+   ".w.nosc .n::after{content:\" ·0pt\";color:var(--mag);}",
+   "      if(lbl) lbl.textContent=runStarted?'残り秒':'撃つと開始';",
+   "  {id:'shots', n:'3発',  lbl:'3 SHOTS',    d:'3発で何トン壊せるか。装薬は起爆1回で1発。', shots:3},",
+   "<button id=\"det\">起爆 <kbd>X</kbd><span id=\"detN\">0</span></button>",
+   "const WHINT={missile:'発射：<kbd>Space</kbd>（連打可）'"
+  ],
+  "est_lines": 30,
+  "perf_cost": "なし",
+  "impact": 5,
+  "risk": "低。検証スイートが textContent を文字列一致で見ている項目（『残り秒』『起爆』など）があれば suite_pc.mjs 側の期待値を同時に直す"
+ },
+ "ui5_ui_scale": {
+  "id": "ui5_ui_scale",
+  "title": "UI サイズ設定（小／標準／大）— 14 インチ Retina で 11px 文字を読めるサイズに",
+  "category": "ui",
+  "description": "HUD と各シートは CSS px 固定で、サブ情報が 9〜11px（#runLbl 9px、#modeTag 9px、#mmLbl 9px、#dmgSub 11px、.kgrid 12.5px）。1512×982 論理解像度の 14 インチでは物理的に 1.3〜1.6mm の文字になり、椅子に座って距離を取ると読めない。逆に外部 4K モニタでは小さすぎる。HUD・タイトル・メニュー・リザルトに共通の倍率（0.9／1／1.15／1.3）を掛ける「UI サイズ」を設定に追加する。CSS `zoom` を使えば px 計算を書き換えずに済み、Safari 26／Chrome とも対応済み。",
+  "implementation": "1) css: `#hud{position:absolute;inset:0;pointer-events:none;z-index:10;transition:opacity .2s;}` の後に `#hud,#title,#result,.ov .sheet,#perf,#cutline{zoom:var(--ui,1);}` を追加（#cutline は px 座標を直接書くので zoom 対象に入れると座標がズレる。入れずに、showCutLine 側で座標を `/uiK()` する方が確実：ui の `function showCutLine(x1,y1,x2,y2){` 内で `const k=+getComputedStyle(document.documentElement).getPropertyValue('--ui')||1;` を掛けずに済むよう #cutline は zoom しない）。\n2) ui: PCS に `ui:1` を追加、applyPCS の clamp 行で `if(![.9,1,1.15,1.3].includes(+PCS.ui)) PCS.ui=1; document.documentElement.style.setProperty('--ui',PCS.ui);`。初期値は `window.innerWidth<1600 && devicePixelRatio>=2` なら 1.15 を提案（保存が無い時だけ）。\n3) body: 『効果』行の次に `<div class=\"row\"><span class=\"lb\">UI サイズ</span><div class=\"row\" id=\"pmUiRow\" style=\"margin:0;flex:1\"></div></div>`。renderMenu の `const lk=document.getElementById('pmLookRow'); lk.innerHTML='';` の前で `[[.9,'小'],[1,'標準'],[1.15,'大'],[1.3,'特大']]` を mkPB で生成し、選択で PCS.ui を更新→ `document.documentElement.style.setProperty('--ui',v)` → savePCS → renderMenu。\n4) zoom の影響を受ける px 計算：10_aim_feedback の散布円 `sp.style.width=px+'px'` は #hud 内なので zoom 倍される → `px/PCS.ui` に補正（`const px=Math.max(14,Math.tan(ang)*f*2);` を `.../PCS.ui`）。knavMove は getBoundingClientRect（zoom 後の実座標）なので無補正でよい。ミニマップ canvas は CSS 幅 210px が zoom されるだけで描画解像度 420 は十分。\n5) 検証：probe で `PCS.ui=1.3; applyPCS()` 後に `#dmgNum` の getBoundingClientRect().height が 1.3 倍になることを確認。",
+  "anchors": [
+   "#hud{position:absolute;inset:0;pointer-events:none;z-index:10;transition:opacity .2s;}",
+   "  const lk=document.getElementById('pmLookRow'); lk.innerHTML='';",
+   "function applyPCS(){",
+   "  <div class=\"row\"><span class=\"lb\">効果</span><button class=\"pb\" id=\"bAO\">SSAO</button><button class=\"pb\" id=\"bFx\">演出</button><button class=\"pb\" id=\"bHud\">HUD</button><button class=\"pb\" id=\"bPerf\">性能表示</button></div>"
+  ],
+  "est_lines": 35,
+  "perf_cost": "無視できる（CSS zoom は合成時に処理。HUD は DOM なので 3D 負荷に無関係）",
+  "impact": 6,
+  "risk": "中。zoom と getBoundingClientRect の相互作用はブラウザ差があり（Chrome は zoom 後座標、Safari 26 も同様だが要実機確認）、knav の最寄り探索が狂わないか目視確認。#cutline と xhSp の px 補正を忘れるとカッターの線がずれる"
+ },
+ "ui6_weapon_panel_guide": {
+  "id": "ui6_weapon_panel_guide",
+  "title": "武器一覧（Tab）の案内強化：操作ヒント併記・おすすめ順・クールダウン秒・初心者向け説明",
+  "category": "ui",
+  "description": "Tab の一覧は 13 枠＋説明 1 行（showWDesc は W.n＋W.d のみ）で、「どう撃つか」（WHINT）は下段の keyhint にしか出ず、一覧を開いている間は見えない。cd 7 秒の絨毯爆撃や 45 秒の破壊球は『いま撃てない理由』が分からず、初心者は連打して諦める。一覧の説明欄に WHINT と『再使用 7.0 秒』を併記し、枠にクールダウン残りを数字で出し、初回だけ『まずは 1 誘導弾 → 4 カッター → 11 鉄球 がおすすめ』の帯を出す。",
+  "implementation": "1) ui: `function showWDesc(W){ el.wdesc.innerHTML='<b>'+W.n+'</b>　'+W.d; }` を\n```js\nfunction showWDesc(W){ const cdTxt=W.cd>=1?'　<span class=\"cdv\">再使用 '+W.cd.toFixed(W.cd%1?1:0)+' 秒</span>':(W.cont?'　<span class=\"cdv\">押している間</span>':''); const sc=(W.id==='orb'||W.id==='nuke')?'　<span class=\"nosc\">スコア加算なし</span>':''; el.wdesc.innerHTML='<b>'+W.n+'</b>'+cdTxt+sc+'<br>'+W.d+'<br><span class=\"hint\">'+(WHINT[W.id]||'')+'</span>'; }\n```\ncss: `#wdesc .cdv{color:var(--amber)} #wdesc .nosc{color:var(--mag)} #wdesc .hint{color:var(--dim);font-size:11.5px}`、`#wdesc{min-height:40px}` を 64px に。\n2) ui: `function updWeaponUI(){` に、選択中枠の `--cd` 更新と同じ場所で `q.dataset.cd=cool&&cd>=1?cd.toFixed(0):''`。css: `.q[data-cd]:not([data-cd=\"\"])::before{content:attr(data-cd);position:absolute;right:5px;top:3px;font-size:10px;color:var(--amber);font-weight:900}`。\n3) ui: `function openPanel(){` 内の `renderPanel();` の後で、初回のみ（localStorage 'tt_pc_wp'）`el.wdesc` の上に `#wreco` 帯（『初めてなら <kbd>1</kbd> 誘導弾 → <kbd>4</kbd> カッター（足元を切って倒す）→ <kbd>0</kbd> 鉄球。核と破壊球は加点なし』）を表示。body の `<div id=\"wdesc\">—</div>` の前に `<div id=\"wreco\"></div>` を追加。\n4) WKEYS の `'-','^','¥'` は JIS 配列前提。US 配列（MacBook US）では `-`,`=`,`\\\\` なので、`navigator.language` ではなく keydown の `e.key` を一度見て `KEYCODE_W` の Equal/Backslash が来たら WKEYS の表示を `'-','=','\\\\'` に更新する（`const WKEYS=[...]` を let にして `renderWBar()`）。",
+  "anchors": [
+   "function showWDesc(W){ el.wdesc.innerHTML='<b>'+W.n+'</b>　'+W.d; }",
+   "const WHINT={missile:'発射：<kbd>Space</kbd>（連打可）'",
+   ".w.nosc .n::after{content:\" ·0pt\";color:var(--mag);}",
+   "function updKeyHint(){"
+  ],
+  "est_lines": 40,
+  "perf_cost": "無視できる（updWeaponUI は既存の毎フレーム DOM 更新に属性 1 つ追加）",
+  "impact": 6,
+  "risk": "低。dataset.cd の毎フレーム書き換えは値が変わる時だけにする（文字列比較）。WKEYS 表示切替は検証スイートの `pc.wbar()` 期待値には影響しない（dataset.w ベース）"
+ },
+ "ENV-03": {
+  "id": "ENV-03",
+  "title": "電柱・電線の作り直し：全細街路に密に立て、引込線とたわむ多条電線をリボンで描く",
+  "category": "city",
+  "description": "mkPole は 7×21×7 のボクセル建物で、歌舞伎町では細い通りの区画中央に 60% の確率、西新宿では 45% と疎らで、しかも通りの片側だけ。電線は buildWires の `LineSegments`＋`LineBasicMaterial`（WebGL では常に 1px）で、3024×1964 の DPR2 画面では事実上見えない。実際の歌舞伎町・渋谷裏通りの空は電線で網目状に覆われ、電柱から各ビルへ引込線が 3〜4 本ずつ伸びる。電柱は破壊可能なボクセル（変圧器 31 で放電→街灯が落ちる）のまま維持し、密度・配置・電線の描き方を直す。",
+  "implementation": "(1) 配置：`  // 電柱：細い通り沿い`（buildKabuki）と `  // 電線の地中化：西新宿(3)と渋谷(1)には電柱が無い`（placeUtils）の 2 箇所を共通関数 `placePoles(pitch, both)` に置き換える。細い通り（XW<18 / ZW<18）に沿って 28〜34m ピッチで連続配置（確率で抜かない。区画境界で止めず、通り全長を走査）。歌舞伎町は両側互い違い、渋谷は MAPID===1 でも細街路（XW<20）には立てる（実物の渋谷裏通りには電柱がある）、西新宿は中央通り以外の細い通りのみ。電柱の位置は歩道の車道側 `XL[i]±(XW[i]/2+0.8)`。(2) mkPole の見た目：`  for(let y=0;y<17;y++){ set(3,y,3,1); set(3,y,4,1); }   // 柱` を高さ 19（約 13m 実寸に近い 9 段 ≈ 12.6m）の 1 列柱（2 列は太すぎる）に変え、腕金を 2 段、変圧器 31 を 1 段目の腕金の端に 2 個、街灯 17 を道路側へ 2 マス張り出したアームの先に。VOX=1.4m なので柱 1 マスは太いが、ttSurf の conc パターンで誤魔化せる。(3) 電線：`function buildWires(){` の中身をリボン化。lampPos の各ペア（既存の `d>150||d<20` と直線判定を維持し、ENV-02 のアーム街灯は除外）につき、既存の 6 分割サグ曲線を 3 本（高さ 0 / −0.5 / −1.0、横に ±0.35 ずらす）生成し、各セグメントをカメラ向きの細い四角形として頂点シェーダで広げる（ShaderMaterial：attribute に線分の両端と幅 0.06m、`gl_Position` で画面上の最小幅 1.5px を保証＝遠景で消えない）。色は 0x101216、fog:true。`wires=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0x0a0c10,fog:true}));` をこの Mesh に差し替える。(4) 引込線：各電柱から半径 24m 以内の建物（`cellAt` で取得、style が zakkyo/shop/apart）の街路側壁面の 3〜4 階相当（y=lv[2]+1）の点へ 1 本ずつ（最大 4 本）、同じリボンで張る。(5) 倒壊との整合：`updLanterns` と同様に 2 秒おきに各電柱 b の `b.live<b.init*0.5` を調べ、その電柱に接続する線分の頂点を地面（y=0.3）まで垂らす（頂点バッファの該当区間を書き換えて needsUpdate）。接続表 `wireOf[poleIndex]=[頂点範囲…]` を buildWires で作る。",
+  "anchors": [
+   "function mkPole(fx,fz,seed){",
+   "  for(let y=0;y<17;y++){ set(3,y,3,1); set(3,y,4,1); }   // 柱",
+   "function buildWires(){",
+   "wires=new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0x0a0c10,fog:true}));",
+   "      if(d>150||d<20) continue;\n      if(Math.abs(bx-ax)>12 && Math.abs(bz-az)>12) continue;   // 直線的に並ぶ電柱だけ",
+   "  // 電柱：細い通り沿い",
+   "  // 電線の地中化：西新宿(3)と渋谷(1)には電柱が無い"
+  ],
+  "est_lines": 220,
+  "perf_cost": "小〜中。電柱 ~90 本 × 各 1 メッシュ（既存と同じ）で +40 ドローコール程度。電線リボンは 1 メッシュ、線分 ~2500 × 3 本 × 2 三角形 ≈ 1.5 万三角形で軽い。垂れ下がり更新は 2 秒おきの頂点書き換えのみ。",
+  "impact": 8,
+  "risk": "中。blds が増えると updCull・processDetach・zoneDamage の全棟走査が伸びる（+90 棟は許容範囲、現状 234 棟）。細い通りの電柱が PARKED の駐車車両や ENV-01 の設備と重なるので、placeCars 側で電柱位置 ±3m を避ける。リボンの頂点シェーダは three r128 の `ShaderMaterial` に fog の chunk を手で足す必要がある（`#include <fog_pars_vertex>` 等）。"
+ },
+ "ENV-04": {
+  "id": "ENV-04",
+  "title": "店先の造り込み：色テント庇・暖簾・のぼり・歩道の積層看板ポール・スラット入り半開きシャッター・奥行きのある入口",
+  "category": "city",
+  "description": "1 階の庇は `fill(...,14)`＝シャッター素材（灰色 .33）で張っているため、歌舞伎町のカラフルなテント庇（赤・黄・緑の縞）に見えない。入口は外周 1 マスの面に素材を並べるだけで奥行きが無く、歩道には店の顔である積層看板ポール（各階のテナント名が縦に並ぶ電照看板）・のぼり・暖簾・置き看板が無い。シャッターは ttSurf の metal 分岐で 1.4m 間隔の継ぎ目だけで、スラット（0.1m ピッチの横筋）が無く「金属パネル」と区別がつかない。これらは全てボクセル＋シェーダで実装するので破壊・延焼・看板の照り返し（buildLightMap は M_CLS で拾う）に自動で乗る。",
+  "implementation": "(1) 新素材を `  40:{n:'タンク(赤)', …},` の直後に追加：46 テント庇(赤) r.72 g.16 b.14 hp 18 sc 1 ld 0 burn:1、47 テント庇(黄) r.86 g.66 b.12、48 テント庇(緑) r.14 g.46 b.22、49 暖簾/のぼり(布) r.88 g.84 b.78 hp 8 burn:1、50 看板ポール(白電照) r.96 g.95 b.90 hp 14 sc 3 emis:1。50 は `[7,8,11,16,17,19,38,39].forEach(i=>M_CLS[i]=2);` と `const IS_SIGN=…` に加え、`const NEON=[7,8,11,16,17];` には加えない（基調色の抽選から外す）。BURNM に 46〜49 を追加。(2) 庇：`    const y=g1-1, aw=RI(2,3);` の fill の素材 14 を `[46,47,48,14][RI(0,3)]` にし、庇の先端 1 列は 1 段下げて垂れ（valance）を表現。ttSurf に `bool tent = mid>=46.0&&mid<=48.0` を足し、`uv.x/0.5` の縞（明暗 0.78/1.0）を描く。(3) 暖簾・のぼり：庇の下（y=g1-2）の入口マス（`cell===0` の柱の隣）の外側 1 マスに 49 を 1 段（暖簾）。のぼりは歩道側 `fX0-2` の位置に 1×4 の柱（上 3 段が 49、最下段 5）を店ごとに 50% で立てる。(4) 積層看板ポール：街路側の面の端（角柱の外側 2 マス）に `fill(x,0,z,x,g1+2,z,50)` の 1 列（高さ 9 マス ≈ 12.6m）＋ 1 段おきに mainNeon を混ぜて「階ごとの色」を出す。歌舞伎町一番街沿い（MAPID 0）は 2 本。(5) シャッター：ttSurf の `  bool metal= mid==25.0||mid==5.0||mid==20.0||mid==14.0||mid==15.0||mid==18.0;` から 14 を外し、`bool shut=mid==14.0` の分岐で `fract(uv.y/0.11)` の横スラット（明暗 0.86/1.0）＋上端 0.3m の収納箱の影。半開き：`        else if(style==='zakkyo'||style==='shop'){\\n          const xf2=(x===X0||x===X1);` の分岐で、シャッター（baseM）を選んだ店は y===0 の段だけ 27（灯り暖白）にして「下から店内の光が漏れる半開き」にする。(6) 入口の奥行き：入口マス（cell===0 の隣）を 1 マス凹ませ（`set(x,y,z,0)` で外周を抜き、その 1 マス内側に 27 か 3 の面を置く）、床に 9（路面）を敷く。greedy は凹面に AO を付けるので入口が自然に暗く縁取られる。",
+  "anchors": [
+   "  40:{n:'タンク(赤)', r:.70,g:.22,b:.16, hp:70,  sc:3, ld:0.3, boom:26, bp:210},",
+   "[7,8,11,16,17,19,38,39].forEach(i=>M_CLS[i]=2);",
+   "const IS_SIGN=new Uint8Array(64); [7,8,11,16,17].forEach(i=>IS_SIGN[i]=1);   // 看板の素材",
+   "const NEON=[7,8,11,16,17];      // 看板・ネオンに使う発光素材",
+   "  /* ── 1階の庇（商店・雑居ビルの顔） ── */",
+   "    const y=g1-1, aw=RI(2,3);",
+   "        else if(style==='zakkyo'||style==='shop'){\n          const xf2=(x===X0||x===X1);",
+   "  bool metal= mid==25.0||mid==5.0||mid==20.0||mid==14.0||mid==15.0||mid==18.0;",
+   "const BURNM="
+  ],
+  "est_lines": 170,
+  "perf_cost": "無視できる〜小。ボクセル数は 1 棟あたり +30〜60（面数で +100 三角形程度）、ttSurf の分岐が 2 つ増えるが分岐は素材 ID で一様。buildLightMap は emis が増えた分だけ色が足される（計算量は同じ）。",
+  "impact": 9,
+  "risk": "低〜中。MATS の ID 46〜50 は未使用で M_* 配列は 64 枠（確認済み）。入口の凹みは外周ループの後に上書きするため、隅柱（`// 隅柱`）と重ならない位置に限定する。ボクセル文字（看板シェーダ）とは独立。検証は `__tt.genCity(0,1)` 後に `blds` のボクセルを数えて 46〜50 が現れること＋スクリーンショット。"
+ },
+ "ENV-07": {
+  "id": "ENV-07",
+  "title": "路面の精度：縁石の立体化、マンホール・停止線・横断歩道・側溝の「正しい場所」への配置、路面テクスチャの異方性",
+  "category": "city",
+  "description": "buildRoad は 2800px のキャンバス（約 4.6px/m）で、マンホール 26 個と「側溝と縁石の線」40 本と汚れ 220 個を街区も建物も関係なく一様乱数で散らしている（建物の下やビルの屋上投影位置にもマンホールがある）。横断歩道は幅 ≥12 の交差点のみ、停止線・『止まれ』・路側帯の白線が無い。縁石は線 1 本で段差が無く、視点を下げると歩道と車道が同じ平面に見える。テクスチャは異方性フィルタなしで、斜めに見る路面（このゲームの大半の視点）で白線がにじむ。実物の東京の路面標示は情報量が多く、ここを正すだけで街路レベルの写実性が一段上がる。",
+  "implementation": "(1) 配置の規則化：`  // 汚れとマンホール` 以降を「車道のみ」に限定。車道の矩形（XL[i]±XW[i]/2 の帯、ZL[j]±ZW[j]/2 の帯）の中だけに乱数を打つ関数 `roadPt()` を作り、マンホール（`g.fillStyle='rgba(26,30,36,.9)'` の 26 個）は車道の中心線から ±2m・20〜40m ピッチで規則的に、汚れは車道とセンター街に、`  // 側溝と縁石の線` の 40 本の乱雑な線は廃止して全街区の縁に沿った側溝（縁石から 0.4m 内側に幅 0.25m、rgba(0,0,0,.35)）と路側帯の白線（縁石から 1.0m、幅 0.15m、rgba(220,220,210,.45)）に置き換える。(2) 停止線と横断歩道：`  // 横断歩道\\n  g.fillStyle='rgba(216,226,236,.32)';` を全交差点（幅 11 の小路同士も含む）に拡張し、各進入路に停止線（幅 0.45m）＋ 幅 ≥20 の通りには右折レーン矢印を描く（canvas の path で単純な矢印）。(3) 縁石の立体化：`  const tex=new THREE.CanvasTexture(cv);\\n  roadMesh=new THREE.Mesh(` の後で、街区の外周に沿った幅 0.3m・高さ 0.15m の長い箱を InstancedMesh（1 街区 4 辺 → 最大 200 個）で置く。色は 0.42 のコンクリ、setupLitMaterial。歩道面を 0.15 上げる代わりの「段差の影」として十分。(4) 異方性：`  try{ bt.anisotropy=renderer.capabilities.getMaxAnisotropy(); }catch(e){}` と同じ 1 行を roadMesh のテクスチャにも適用し、`generateMipmaps=true, minFilter=LinearMipmapLinear`（既定）を明示。(5) 解像度：`  const S=2800;\\n  const spanX=CITY.x1-CITY.x0, spanZ=CITY.z1-CITY.z0;` を `QUAL.level<=1 ? 3584 : 2800` に（最高・高のみ）。ノイズ付与ループ（getImageData 全画素）は 16.7M→12.8M 画素なので生成時間 +60% 程度、genCity 中の boot 表示内に収まる。",
+  "anchors": [
+   "function buildRoad(){",
+   "  const S=2800;\n  const spanX=CITY.x1-CITY.x0, spanZ=CITY.z1-CITY.z0;",
+   "  // 汚れとマンホール",
+   "  for(let i=0;i<26;i++){\n    const rx=Math.random()*S, rz=Math.random()*S;\n    g.fillStyle='rgba(26,30,36,.9)';",
+   "  // 側溝と縁石の線",
+   "  // 横断歩道\n  g.fillStyle='rgba(216,226,236,.32)';",
+   "  const tex=new THREE.CanvasTexture(cv);\n  roadMesh=new THREE.Mesh(",
+   "  try{ bt.anisotropy=renderer.capabilities.getMaxAnisotropy(); }catch(e){}"
+  ],
+  "est_lines": 130,
+  "perf_cost": "小。描画はテクスチャ 1 枚（3584² RGBA = 51MB VRAM、32GB 統合メモリなら問題なし）＋縁石 1 ドローコール。生成は genCity 時に +100〜150ms（1 回きり）。異方性 16x はタイル型 GPU でも帯域コストは僅か。",
+  "impact": 7,
+  "risk": "低。buildRoad は genCity 内で Math.random が seed 付きに差し替わるので再現性は保たれる。縁石の InstancedMesh は WET の反射 RT にも描かれるが 200 個の箱なので無視できる。センター街（CGAI）の矩形と歩道橋の下は縁石を置かない例外処理が要る。"
+ },
+ "ENV-08": {
+  "id": "ENV-08",
+  "title": "自動販売機の造り込み：商品窓・取出口・側面ロゴをシェーダで描き、壁沿いに複数台並べ、壊すと缶が散る",
+  "category": "city",
+  "description": "自販機（素材 19）は mkBuilding で 1×2 の赤い柱 1 本（42% の建物）と mkUtility 'vend' の 2×4×2 の赤い箱で、全面が同じ赤の発光面（M_CLS 2 → ttBoard の看板処理は UV の有無で変わる）。実物の自販機は前面上部に明るい商品窓（白〜青白）、中央に金属色の押しボタン列、下に取出口、側面はメーカー色のベタ。歌舞伎町の歩道には 3〜5 台が壁沿いに連なる。日本の街の夜の象徴なので、1 素材の描き分けだけで街路レベルの説得力が上がる。被弾時に缶（小さな円筒の破片）が散ると「中身がある」感じが出る。",
+  "implementation": "(1) シェーダ：LIT_MAIN の `    if(ttCls>1.5&&ttVert<0.5) outgoingLight=ttC0*0.08+vec3(0.015);   // 看板の天面・底面は金属` の直前に、`mid==19.0`（ttSurf と同様に vM から素材 ID を復号。LIT_MAIN では `floor(vM+0.5)` を使う）の分岐を追加：垂直面のうち vLPos の高さ（0〜2.8m）で上 55% を「商品窓」（白〜青白 1.6 倍の発光、横 5 列×縦 2 段のボトル影 = `fract(uv*vec2(5,2))` の暗い楕円）、中段 15% を金属（ttC0*0.1）、下 30% をメーカー色（ttC0*0.5、取出口の黒い矩形）。側面と背面は `dot(ttN, 建物の外向き)` が無いので、vLPos で「建物に近い側＝背面」を判定できないため、前面・側面は同じ描き分けで良い（側面にも商品窓がある機種として割り切る）。(2) 配置：`  /* ── 自動販売機（路面） ── */` の 1 台を `n=RI(1,4)` 台の連続配置（同じ面の隣接マス、幅 1 マス=1.4m は実物 1.0m より太いので 2 台につき 1 マス空ける）にし、`  if(kind==='vend'){\\n    const n=2+Math.abs(seed|0)%3;` の mkUtility 側は幅 2 マスの箱から 1 マス幅・高さ 2 の個体 n 台に改める（既存は 2×4 で実物の倍の太さ）。(3) 色違い：19 の他に 52（自販機(白) r.92 g.93 b.95）、53（自販機(青) r.16 g.36 b.78）を `  19:{n:'自販機', …},` の後に追加し、`[7,8,11,16,17,19,38,39].forEach(i=>M_CLS[i]=2);` に 52,53 を加える。買える色の分布は赤 55%・白 30%・青 15%。(4) 缶が散る：`  const glass=M.n.indexOf('窓')>=0;` の直後に `const can=M.n.indexOf('自販機')>=0;` を足し、can なら sx=sz=0.07、sy=0.12、色をランダム（赤/銀/緑）、life 短めで `kick*1.6`、個数は killVoxel 側の `Math.random()<.14` に依存するので自販機だけ 3 個まとめて呼ぶ（Snd.mat の金属音はそのまま）。",
+  "anchors": [
+   "  19:{n:'自販機',     r:1.0,g:.30,b:.26, hp:20,  sc:2, emis:1, ld:0.0},",
+   "  /* ── 自動販売機（路面） ── */",
+   "  if(kind==='vend'){\n    const n=2+Math.abs(seed|0)%3;",
+   "[7,8,11,16,17,19,38,39].forEach(i=>M_CLS[i]=2);",
+   "  const glass=M.n.indexOf('窓')>=0;",
+   "    if(ttCls>1.5&&ttVert<0.5) outgoingLight=ttC0*0.08+vec3(0.015);   // 看板の天面・底面は金属"
+  ],
+  "est_lines": 90,
+  "perf_cost": "無視できる。シェーダの分岐 1 つ（素材 ID による一様分岐）と、ボクセル +数百個。DEB の缶は既存の上限（DEB_MAX 3000）内。",
+  "impact": 6,
+  "risk": "低。LIT_MAIN の ttCls==2 分岐は看板（ttBoard）と共有なので、19/52/53 の判定を ttBoard より前に置き `else` で抜ける必要がある。ttBoard の `#ifdef USE_UV` ブロックの内側に入れないこと。検証はスクリーンショットで自販機の面が 3 段に見えること。"
+ },
+ "ENV-09": {
+  "id": "ENV-09",
+  "title": "路地裏の生活感：室外機の列・配管・非常口灯・ゴミ袋とビールケースの山・段ボール・壁付け裸電球",
+  "category": "city",
+  "description": "mkAlleyBuildings は区画を 2 列に割って幅約 3m の路地を作るが、路地の中は何も無い空間で、両側の壁は縦配管 1 本（70%）だけ。実物の歌舞伎町の路地は室外機の壁、ガス管・排気ダクト、店の裏口の非常口灯（緑）、ゴミ袋・ビールケース・段ボールの山、裸電球で埋まっていて、俯瞰から見下ろした時の「隙間の密度」が街の印象を決める。路地に入って撃つ遊び方（機関砲で小物を散らす）も生まれる。壁付けのものはボクセル（破壊可）、床の小物は ENV-01 の STF（InstancedMesh）に kinds を 2 つ足して飛ばす。",
+  "implementation": "(1) `function mkAlleyBuildings(x0,z0,x1,z1,seed){` の各 mkBuilding 呼び出しの後に、路地側の面（vertical なら side 0 の面 1 / side 1 の面 0）を `opt.alley=true` で渡し、mkBuilding 内で `  /* ── 縦配管 ── */\\n  if(R()<.7){` の直後に `if(opt&&opt.alley)` の分岐を追加：路地側の壁に (a) 室外機 20 を 2 列×各階（窓台と同じ y）、(b) 配管 20 と 30（ガス管：壊すと漏出→遅延着火、既存の leak 演出）を縦横に 2〜3 本、(c) 各階の裏口の上に非常口灯（ENV-06 の 51。無ければここで追加）、(d) 1 階に裸電球 27 を 1 マス（3 棟に 1 つ）→ buildLightMap が路地の床を照らす。(2) 床の小物：mkAlleyBuildings の最後（`  return true;` の前）で路地の中心線（vertical なら x=x0+w/2+1.5、z は z0..z1）に沿って 4〜7m ごとに `STF.list.push({k:'bag'|'crate'|'box', …})`（ENV-01 の STF に kinds を追加：bag=0.6×0.5×0.6 の黒い丸み箱 ×3 個を 1 インスタンスの合成ジオメトリ、crate=0.4×0.3×0.3 の青/黄の箱を 3 段積み）。ENV-01 未実装の場合は同じ構造を最小限（2 kinds）で持つ。(3) 破壊：ボクセルは既存どおり。STF の bag/crate は stfBlast で飛散、chunk の落下接触（ENV-11）でも散る。(4) 延焼：ゴミ袋は BURNM 相当として burnAt の半径内で dead にし小さな fire を 1 つ足す（`function burnAt(wx,wy,wz,rad,pow){` の末尾）。(5) 密度は MAPID 0 を最大、1 はセンター街裏のみ、2 は無し。",
+  "anchors": [
+   "function mkAlleyBuildings(x0,z0,x1,z1,seed){",
+   "  /* ── 縦配管 ── */\n  if(R()<.7){",
+   "function burnAt(wx,wy,wz,rad,pow){",
+   "const BURNM=",
+   "  buildLanterns();\n  buildSignals();\n  } finally { Math.random=_rnd; }"
+  ],
+  "est_lines": 150,
+  "perf_cost": "小。路地の区画は全体の 34% で、1 棟あたり +50 ボクセル。STF の小物は +400 インスタンス（2 ドローコール）。裸電球が増えるぶん buildLightMap の加算が増えるが生成時のみ。",
+  "impact": 7,
+  "risk": "中。路地の幅は 1.5 マス（2.1m）しか無いため、壁の張り出し（室外機 1 マス）で路地が埋まる。張り出しは片側だけにし、両側に付ける場合は床の小物を置かないなど干渉を避ける。ガス管 30 を増やすと誘爆の連鎖が増えるので `gasLeaks.length<24` の既存上限に任せる。ENV-01 と anchor が重なる（genCity の buildSignals 直後）ので、同時採用時はどちらかに統合する。"
+ },
+ "ENV-10": {
+  "id": "ENV-10",
+  "title": "駅前・街角の小建築（mkProp）：地下鉄出入口・交番・公衆トイレ・喫煙所・工事の仮囲い",
+  "category": "city",
+  "description": "ランドマーク級は充実しているが、街角のスケール（高さ 3〜5m）の建築物が一つも無い。渋谷のスクランブルの四隅には地下鉄出入口（屋根付きの階段、緑の『銀座線』白地看板）、歌舞伎町一番街の入口脇には交番（歌舞伎町交番：白い 2 階建て、赤灯）、新宿中央公園には公衆トイレ、幹線沿いに仮囲い（白いパネルに青帯）がある。これらは「ここが東京だ」と分からせる記号でありながら小さく、mkProp のボクセルで作れば破壊・延焼・剥離が自動で成立する（mkHayashi・mkGate と同じ流儀）。",
+  "implementation": "`function mkUtility(fx,fz,kind,seed){` に kind を追加するのではなく、`function mkProp(fx,fz,W,HH,D,style,paint){` を使う独立関数を 4 つ書く。(1) `mkSubwayEntrance(fx,fz,dir)`：W 5×H 5×D 9。地面を 1 段掘った階段（9 の路面素材を段状に −1 は不可なので、地上 0 段目に 26 黒御影の縁、1〜3 段目に手すり 18 と屋根 25 のフレーム、屋根上に 17（ネオン白）の横長看板 1 列）。`  placeCars(1.0);\\n  placeUtils();\\n  addScreensAtCrossing();` の直前で、スクランブル四隅（PED.corners と同じ `XL[2]±(XW[2]/2+6), ZL[2]±(ZW[2]/2+6)`）に 4 基。歩行者の `put` は `bldAt` を見るので自動的に避ける。(2) `mkKoban(fx,fz)`：W 6×H 7×D 6、1 階 22（白タイル）、2 階 23、窓 3、屋根 25、正面上に 39（尾灯＝赤発光）の赤灯 1 マス。`  // ── 路上の車と設備 ──\\n  placeCars(0.95);` の直前で一番街アーチ（mkGate）の東脇（`XL[2]+XW[2]/2+6, ZL[5]-ZW[5]/2-14`）に 1 棟、regLM せず通常ビル扱い。(3) `mkToilet(fx,fz)`：W 6×H 4×D 4、22 の壁・25 の屋根・入口 2 マス、`function mkPark(cx,cz,halfW,halfD){` の末尾（樹木の後）で公園の縁に 1 棟。(4) `mkHoarding(fx,fz,len,along)`：高さ 3 の 25（金属パネル）1 列＋ 2 段目を 36（車体(青)）にして青帯、2 マスごとに 5 の支柱。`  placeCars(.7);\\n  placeUtils();\\n}` の直前で西新宿の空き区画の縁 1 箇所、歌舞伎町の `fillLot` が 5% で空ける区画（`if(Math.random()<.05) continue;`）を囲う形で置くと「工事中の空き地」として自然。(5) いずれも `style:'prop'` にして `checkTopple` の除外リスト（`if(b.style==='pole'||b.style==='gate'||b.style==='rail'||b.style==='car') return 0;`）に加える（小さすぎて転倒判定が暴れるため）。",
+  "anchors": [
+   "function mkUtility(fx,fz,kind,seed){",
+   "function mkProp(fx,fz,W,HH,D,style,paint){",
+   "  placeCars(1.0);\n  placeUtils();\n  addScreensAtCrossing();",
+   "  // ── 路上の車と設備 ──\n  placeCars(0.95);",
+   "function mkPark(cx,cz,halfW,halfD){",
+   "  placeCars(.7);\n  placeUtils();\n}",
+   "  if(b.style==='pole'||b.style==='gate'||b.style==='rail'||b.style==='car') return 0;"
+  ],
+  "est_lines": 140,
+  "perf_cost": "無視できる。+8 棟（各 1 ドローコール、数百ボクセル）。",
+  "impact": 6,
+  "risk": "低。配置座標が PED.corners・mkGate・PARKED と重なるので、生成順を mkGate の後・placeCars の前にし、placeCars 側は `bldAt` で確認してから置く（現状 placeCars は衝突を見ていないので 1 行追加）。"
+ },
+ "ENV-12": {
+  "id": "ENV-12",
+  "title": "街路樹と植栽の多様化：マップごとの樹種（イチョウ・ケヤキ・サクラ）・歩道の植栽帯・樹木保護柵とグレーチング",
+  "category": "city",
+  "description": "街路樹は mkTree の 1 形状（縦長楕円の樹冠、素材 43 一色）だけで、幅 ≥20 の通りに等間隔、歌舞伎町には 1 本も無い（実物のさくら通りは桜並木、靖国通りはケヤキ）。樹冠は `Math.random()<0.18` で穴を開けるだけで葉の明暗が無く、夜のネオンの照り返しを受ける面がのっぺりしている。マップごとに樹形を変え（西新宿＝イチョウの円錐、渋谷＝ケヤキの扇形、歌舞伎町さくら通り＝低い丸い樹冠と淡い桃色の素材）、根元に保護柵・グレーチング、歩道に植栽帯（低木の帯）を置くことで通りの性格が分かれる。樹木はボクセルなので燃える（BURNM 43,44）・吹き飛ぶは既存のまま。",
+  "implementation": "(1) `function mkTree(fx,fz,seed){` に `kind` 引数を足す。gingko: 現状の縦長楕円（rx 2.0, ry 4.2）。keyaki: W 9×D 9×H 15、幹 2 段分岐（44 を y3 と y5 で 2 本に分ける）、樹冠は上に広がる逆円錐 `dx*dx+dz*dz < (y-5)*0.9` を y 6..13。sakura: W 7×H 9、幹 4 段、樹冠は半径 3 の球、素材を新規 54（桜：r.78 g.52 b.60 hp 12 ld 0）に。葉の明暗は `set(x,y,z, (x+y*3+z*7)%5===0 ? 44 : 43)` の代わりに新素材 55（濃い葉 r.13 g.22 b.11）を外側ほど少なく混ぜて立体感を出す（M_R/M_G/M_B 配列は 64 枠）。BURNM に 54,55 を追加。(2) 根元：mkTree 内で y=0 に 9（路面）の 3×3 グレーチングと、その四隅に 18（手すり）を 2 段で保護柵。(3) 配置：`function placeStreetTrees(spacing){` に `kind` と対象通りの条件を渡せるようにし、`  placeStreetTrees(34);`（西新宿）は gingko、渋谷の `  placeCars(1.0);\\n  placeUtils();\\n  addScreensAtCrossing();` の直前で keyaki を幅 ≥22 の通りに 40m ピッチ、歌舞伎町は `  // ── 路上の車と設備 ──\\n  placeCars(0.95);` の直前で ZL[1]（さくら通り、幅 11）に sakura を 14m ピッチ両側（細い通りなので歩道の建物側 `ZL[1]±(ZW[1]/2+1.2)`）。(4) 植栽帯：ENV-01 の planter kind を使い、幅 ≥24 の通りの中央分離帯（XL[i]、ZL[j] の中心線上。TRF.lanes は ±2.3m なので中心 ±1.0m は空いている）に 1.2m の低木ブロックを 2m ピッチで連続（西新宿の中央通り・渋谷の明治通り）。ENV-01 を採らない場合は mkProp で 1 区画ぶんを 1 棟の低木列として置く（W=1, H=1, D=区画長）。(5) 公園の `  mkTree(tx, tz, (tx+tz)|0);\\n  }\\n}` は 3 種を混ぜる。",
+  "anchors": [
+   "function mkTree(fx,fz,seed){",
+   "function placeStreetTrees(spacing){",
+   "  placeStreetTrees(34);",
+   "  43:{n:'樹木',       r:.20,g:.31,b:.16, hp:14,  sc:1, ld:0.0},",
+   "  mkTree(tx, tz, (tx+tz)|0);\n  }\n}",
+   "const BURNM="
+  ],
+  "est_lines": 110,
+  "perf_cost": "小。樹木は 1 本 1 棟（既存と同じ）で歌舞伎町に +30 棟、渋谷に +40 棟。葉の 2 色化で greedy の面数が増える（1 本 +200 三角形）。中央分離帯の低木は 1 ドローコール。",
+  "impact": 6,
+  "risk": "低〜中。さくら通りは幅 11m で PARKED（placeCars は `XW[i]>=20` 以外の通りに駐車）と重なるので、placeCars の走査で樹木位置を避けるか、樹木を歩道の建物寄り（建物の MG 余白の外側 1.2m）に置く。樹木が増えると buildPeds の `bldAt` で歩行者が置けない箇所が増えるが許容。"
+ },
+ "L07": {
+  "id": "L07",
+  "title": "濡れ地図：水たまりを側溝・横断歩道・交差点に沿わせ、反射の距離と解像度を M5 向けに引き上げる",
+  "category": "lighting",
+  "description": "WET_MAIN の水たまりは `wN(vWPos.xz*0.045)` のノイズだけで決まり、道の形と無関係に丸い水たまりが散らばる。実際の雨上がりは縁石脇と横断歩道の窪み、交差点の中央に水が溜まり、車道の中央（かまぼこ状の路面）は乾く。buildRoad のキャンバスにはすでに街路の形があるので、濡れ度をテクスチャのアルファに描き込み、シェーダで `diffuseColor.a` として読む。あわせて反射の距離フェード（150→460m）を最高画質で 260→800m に、反射 RT を 1/2 → 2/3 解像度にして遠くのネオンの映り込みを粗くしない。",
+  "implementation": "(1) buildRoad：`const tex=new THREE.CanvasTexture(cv);` の直前で、ImageData のアルファに濡れ地図を書く：基本 90（0.35）、街区の外周 3m 帯＝230、横断歩道の帯＝190、幅 20m 以上の車道中央 ±3m＝40、ランダムな楕円 60 個＝200、ノイズ ±25。既存の `g.getImageData` ブロック（ノイズ付加）内で `d[i+3]=...` を書けば getImageData/putImageData が 1 回で済む。(2) WET_PRE は変更なし。WET_MAIN の `float pud=smoothstep(0.50,0.66,pn);` を `float wmap=diffuseColor.a; float pud=smoothstep(0.50,0.66,pn*0.55+wmap*0.55);` に置換し、直後に `diffuseColor.a=1.0;`（MeshBasicMaterial の map_fragment で alpha が diffuseColor.a に乗っているので読めるが、出力には残さない）。地面（WET.ground、map 無し）は diffuseColor.a=1 なので今まで通りの弱い濡れ（wetK .30）。(3) `float wdist=1.0-smoothstep(150.0,460.0,length(vWPos.xz-uCam.xz));` を `uWetFar` uniform（WET.u に追加、QLV の level 0/1 で 800、2 で 460）を使う `smoothstep(uWetFar*0.33,uWetFar,...)` に。(4) resizePost の `const dv=(WET.every|0)>1?3:2;` を QUAL.level===0 なら 1.5 に（`Math.max(1,(w/dv)|0)` はそのまま動く）。(5) `mat.customProgramCacheKey=()=>'tt_wet_2';` → 'tt_wet_3'。",
+  "anchors": [
+   "  const tex=new THREE.CanvasTexture(cv);\n  roadMesh=new THREE.Mesh(new THREE.PlaneGeometry(span,span),",
+   "  float pud=smoothstep(0.50,0.66,pn);                       // 水たまり",
+   "  float wdist=1.0-smoothstep(150.0,460.0,length(vWPos.xz-uCam.xz));   // 遠くは反射を弱める",
+   "  mat.customProgramCacheKey=()=>'tt_wet_2';",
+   "  g.fillStyle='#0a0d11'; g.fillRect(0,0,S,S);"
+  ],
+  "est_lines": 55,
+  "perf_cost": "小〜中。反射 RT を 2/3 解像度にすると最高画質で反射パスの画素数が 1.5MP→2.6MP（M5 なら 1〜2ms）。濡れ地図自体はテクスチャ読み 0 回増（既存の map サンプルのアルファを使う）。",
+  "impact": 7,
+  "risk": "低。キャンバスのアルファを書くと `premultiplyAlpha` の既定で RGB が暗くなる恐れ → `tex.premultiplyAlpha=false` を明示し、probe の screenshot で路面の明るさが変わっていないことを確認。"
+ },
+ "L08": {
+  "id": "L08",
+  "title": "雨モード（任意トグル）：GPU 雨筋、水たまりの波紋、路面の跳ね、霞の増加、雨音",
+  "category": "vfx",
+  "description": "世界観は「雨上がりの歌舞伎町」だが、本当に降らせる選択肢は無い。雨は夜景の情報量を一気に上げ、ネオンの反射と相性が良い。カメラ周囲 60×40×60m の箱内を落ちる雨筋 6000 本（1 ドローコール・InstancedBufferGeometry、GPU 内でラップ）、水たまりの波紋（WET_MAIN の歪みに広がる輪を加算）、WET_LEVEL を 1.0 に、霧の near を 1100→700 に、Snd のノイズバッファを帯域通過して雨音ループ。メニュー「効果」行に「雨」トグル、キーは N。設定は PCS.rain に保存。",
+  "implementation": "(1) RAIN オブジェクトを VFX の隣に定義し、initScene の `skyMesh=makeSky(); scene.add(skyMesh);` の後で `initRain()`：geometry は 4 頂点の縦長クアッド（0.03×0.45m）、instance 属性 aR（vec3 乱数 0..1）6000 個。頂点シェーダ：`vec3 box=vec3(60.,40.,60.); vec3 p=mod(aR*box+vec3(uWind*uT, -uT*uSpeed*(0.8+0.4*aR.x), 0.0), box)-box*0.5+uCamP;` を基点に、落下方向（0,-1,0)+風 に沿って伸ばしたビルボード（SPARK_VERT の要領で画面空間で向きを揃える）。フラグメント：`vec3 c=vec3(0.55,0.6,0.7)*0.35 + texture2D(uLM,(p.xz-uLMo.xy)*uLMo.z).rgb*0.6;` で看板の色に染め、alpha 0.22、AdditiveBlending、depthWrite false、fog false、renderOrder 7。(2) 更新：`updFX(dt); updShells(dt); ...` の行末に ` updRain(dt);` を追加（uT += dt、uCamP = camera.position、RAIN.mesh.visible = PCS.rain）。(3) 波紋：WET_MAIN の `vec2 rip=...` の直後に `if(uRain>0.0){ vec2 cell=floor(vWPos.xz/0.7); float h=wH(cell); float rt=fract(uWTime*0.9+h); vec2 q=fract(vWPos.xz/0.7)-0.5; float rr=length(q)-rt*0.42; float ring=smoothstep(0.03,0.0,abs(rr))*(1.0-rt)*pud; rip+=normalize(q+1e-4)*ring*0.5*uRain; }`。WET.u に `uRain:{value:0}` を追加し WET_PRE の uniform 宣言に `uRain` を足す（cacheKey を 'tt_wet_3'/'tt_wet_4' へ）。(4) 路面の跳ね：updRain で毎秒 nK(200) 個、カメラ前方 30m 内のランダム地点に `spark(x,.2,z, rf(-1,1), rf(1,2.5), rf(-1,1), .18, .6,.65,.75)`（既存の火花で小さな白い跳ね）。(5) 反射パスから雨を除外：`const hide=[WET.ground,roadMesh,glowFloor,VFX.smoke,VFX.fire,DEB.mesh];` に `RAIN.mesh` を追加。(6) 環境：`renderReflection` の `WET.u.uWet.value=WET_LEVEL;` を `WET_LEVEL*(PCS.rain?1.18:1)` に、`scene.fog.near` を雨で 700 に（applyRain() で切替）。(7) UI：body の `<div class=\"row\"><span class=\"lb\">効果</span><button class=\"pb\" id=\"bAO\">SSAO</button>` に `<button class=\"pb\" id=\"bRain\">雨</button>` を追加、ui の `setTog('bAO',...)` の隣に `setTog('bRain','雨 '+(PCS.rain?'ON':'OFF'),PCS.rain)`、`document.getElementById('bFx').addEventListener('click'` の隣に bRain のハンドラ、GAME_KEYS に 'KeyN' を追加し `case 'KeyR': cam.pitch=0; break;` の隣に `case 'KeyN': toggleRain(); break;`、applyPCS で `applyRain()`。(8) 音：Snd に `rain(on)` を追加（既存の 2 秒ノイズバッファ nb をループ再生 → BiquadFilter bandpass 1800Hz Q0.7 → gain 0.12）。",
+  "anchors": [
+   "  updFX(dt); updShells(dt); updTracers(dt); updEfx(dt); updFires(dt); updGasLeaks(dt); updBeams(); updDebris(dt); updVFX(dt); updTraffic(dt); updPeds(dt); updLanterns(dt); updSignals(dt);",
+   "const WET_LEVEL=0.85;",
+   "  vec2 rip=vec2(wN(vWPos.xz*1.3+vec2(uWTime*0.35,0.0))-0.5, wN(vWPos.xz*1.3-vec2(0.0,uWTime*0.3))-0.5);",
+   "uniform sampler2D uRefl; uniform vec2 uScreen; uniform float uWet, uWTime, uWetK; uniform vec3 uCam;",
+   "  const hide=[WET.ground,roadMesh,glowFloor,VFX.smoke,VFX.fire,DEB.mesh];",
+   "'KeyT','KeyH','KeyP','KeyI','KeyJ','KeyK','KeyL','ShiftLeft'",
+   "    case 'KeyR': cam.pitch=0; break;",
+   "<div class=\"row\"><span class=\"lb\">効果</span><button class=\"pb\" id=\"bAO\">SSAO</button>",
+   "  setTog('bAO','SSAO '+(PCS.ao?'ON':'OFF'),PCS.ao);",
+   "document.getElementById('bFx').addEventListener('click'",
+   "  resScale=PCS.scale; aoUser=!!PCS.ao; fovUser=PCS.fov; S.sound=!!PCS.snd; QUAL.fxK=PCS.fx<1?.5:1;",
+   "  skyMesh=makeSky(); scene.add(skyMesh);"
+  ],
+  "est_lines": 160,
+  "perf_cost": "中（ON のときのみ）。雨筋は 6000×2 三角形・加算の細いクアッドでフィルレートは小さい（M5 で 0.5ms 程度）。波紋は路面画素でハッシュ 1 回。OFF なら 0。",
+  "impact": 8,
+  "risk": "中。雨筋のビルボードを画面空間で作るので、FOV 変更（V ズーム）時の太さの見え方を確認。SSAO の深度プリパスは transparent を除外しているので雨は AO に写らない（期待通り）。suite_pc の既存項目に影響しないよう既定 OFF。"
+ },
+ "L10": {
+  "id": "L10",
+  "title": "サーチライトと回転灯：屋上から空を掃く光芒、交差点の回転灯、パトカーの赤青",
+  "category": "vfx",
+  "description": "空は光害のドームが描かれているが、街から空へ伸びる光が無く、空と街が別のレイヤーに見える。歌舞伎町タワー／渋谷スクランブルスクエア級の最も高いビルの屋上に回転サーチライト 2〜3 本を置く：細長い円錐の加算メッシュに、縁のフレネル減衰と長さ方向の減衰、霞のノイズを乗せた擬似ボリューム光。ゆっくり旋回し、仰角を往復させる。地上には歌舞伎町の店先に回転灯（赤・黄）を数個、渋谷に停車パトカー（赤青交互、L01 のスポット光で壁を舐める）。雲底（SKY_FRAG の cov）にサーチライトが当たって明るい斑が動くと決まる。",
+  "implementation": "(1) SEARCH プール：initScene の `skyMesh=makeSky(); scene.add(skyMesh);` の後で 4 本作成。geometry `new THREE.CylinderGeometry(0.9, 22, 320, 28, 1, true)` を translate(0,160,0)（根元が原点）。ShaderMaterial（AdditiveBlending, transparent, depthWrite:false, depthTest:true, side:DoubleSide, fog:false）、uniforms {uTime, uInt, uCol}。頂点で vUv・法線・視線を渡し、フラグメント：`float edge=pow(1.0-abs(dot(normalize(vN),normalize(vV))),1.6); float len=pow(1.0-vUv.y,1.8); float n=0.6+0.4*ttBN風ノイズ(vUv*vec2(6.0,40.0)+uTime*0.3); gl_FragColor=vec4(uCol*uInt*edge*len*n*0.9,1.0);`（加算なので alpha 不要）。(2) 配置：genCity の `buildSignals();` の直後に `buildSearch()`：blds から H が最大の 2 棟（style 'tower'/'toho' 優先）を選び、屋上中央＋2m に 1 本ずつ、歌舞伎町はさらに 1 本。回転灯は MAPID 0 で店先 3 箇所（LAN の配置に相乗り）に小さな点光源（L01 の addLight を毎フレーム、r:14、色 [1,.15,.05]、向き yaw を 2.2rad/s で回す cone 0.5）。(3) 更新：`updFX(dt); ...` の行に `updSearch(dt);` を追加：yaw+=dt*0.35（本ごとに ±）、pitch=−0.35+0.3*sin(t*0.21)、mesh.rotation を設定、停電（cityPower<0.5）で uInt=0、倒壊した支持ビル（b.toppled）で消す。(4) 雲への当たり：SKYU に `uSL:{value:[vec4×3]}`（方向 xyz と強さ）を足し、SKY_FRAG の雲の色 `cl` 計算後に `for(int i=0;i<3;i++){ float a=pow(max(dot(d,normalize(uSL[i].xyz)),0.0),400.0); cl+=vec3(1.0,0.95,0.85)*a*uSL[i].w*cov; }`。(5) 反射には写してよい（加算のため hide リストに入れない）。",
+  "anchors": [
+   "  skyMesh=makeSky(); scene.add(skyMesh);",
+   "  buildSignals();\n  } finally { Math.random=_rnd; }",
+   "  updFX(dt); updShells(dt); updTracers(dt); updEfx(dt); updFires(dt); updGasLeaks(dt); updBeams(); updDebris(dt); updVFX(dt); updTraffic(dt); updPeds(dt); updLanterns(dt); updSignals(dt);",
+   "    cov=smoothstep(0.50,0.78,n)*smoothstep(0.0,0.10,e)*(1.0-0.35*smoothstep(0.35,1.0,e));",
+   "  uTime:{value:0}, uGlow:{value:1}, uFlash:{value:0}, uFire:{value:0},",
+   "  SKYU.uGlow.value=0.72+0.28*cityPower;"
+  ],
+  "est_lines": 110,
+  "perf_cost": "小。円錐 3〜4 本（各 28×2 三角形）の加算描画。画面を横切るときのオーバードローは半透明 1 層分。雲のループは空の画素のみで 3 回。",
+  "impact": 7,
+  "risk": "中。円錐が建物を貫通して見える（深度テストで建物の手前だけ描かれるので許容範囲だが、根元付近で露骨なら根元 30m を `len` で暗くする）。SSAO の深度パスは transparent を除外するので問題なし。"
+ },
+ "L13": {
+  "id": "L13",
+  "title": "爆発の光の応答：雲底が爆心方向で明るくなり、近くの窓ガラスに閃光が走り、煙が内側から照らされる範囲を広げる",
+  "category": "vfx",
+  "description": "核だけが空（uFlash）を焼き、通常の大爆発は空と無関係。実際は 30m 級の火球でも低い雲底が一瞬オレンジに照らされる。SKYU に「位置つきの爆光」uBoom（方向 xyz と強さ）を 2 つ持ち、detonate で rad>=30 のとき登録、SKY_FRAG の雲の色に方向依存の斑を加える。あわせて窓ガラス（class 3/4）の映り込み ttSky(reflect) に最も近い点光源の鏡面ハイライトを足し、爆発のたびにビル全体の窓が一瞬きらめく。これらは「爆発の規模感」を空間全体に伝える安価な手段で、M5 の画面サイズではとくに効く。",
+  "implementation": "(1) SKYU に `uBoom:{value:[new THREE.Vector4(0,1,0,0),new THREE.Vector4(0,1,0,0)]}` を追加（`uTime:{value:0}, uGlow:{value:1}, uFlash:{value:0}, uFire:{value:0},` の行）。SKY_FRAG の uniform に `uniform vec4 uBoom[2];`、雲の色 `cl` を計算した後（`cov=...` の直後の `vec3 cl=...` 行の後）に `for(int i=0;i<2;i++){ float a=pow(max(dot(d,normalize(uBoom[i].xyz)),0.0),14.0); cl+=vec3(1.0,0.55,0.25)*a*uBoom[i].w*2.5; }`。(2) renderFrame の `SKYU.uFlash.value*=Math.exp(-dt*2.2);` の隣で `for(const b of SKYU.uBoom.value) b.w*=Math.exp(-dt*3.5);`。detonate（`function detonate(x,y,z,rad,pow,shk){`）の冒頭で rad>=30 なら最も弱い slot に `dir=(x-cam.x, max(y-cam.y,0)+rad*2, z-cam.z)` を正規化して set、`w=min(1, rad/90)`（核は既存の uFlash に任せる）。(3) 窓のハイライト：LIT_MAIN の灯った窓 `outgoingLight=mix(room,ttSky(reflect(ttRd,ttN)),fr)*...` と消灯窓 `ttRefl=ttSky(reflect(ttRd,ttN))*0.9*fr;` の ttSky 呼び出しを `ttSkyL(reflect(ttRd,ttN),vWPos)` に変え、ttSkyL は ttSky に `uLP[0..3]`（上位 4 灯）の鏡面項 `pow(max(dot(r, normalize(uLP[i].xyz-wp)),0.0),48.0)*uLC[i].rgb*uLC[i].a*clamp(1.0-dist/uLP[i].w,0,1)` を足したもの。(4) 煙：SMOKE_FRAG の `if(!dust) col+=vec3(1.0,0.34,0.06)*(vS.z*...)` の係数 2.2 を 3.0 にし、`at*at*1.3` を `at*at*1.6` に（点光源が煙を照らす度合い）。cacheKey 更新。",
+  "anchors": [
+   "  uTime:{value:0}, uGlow:{value:1}, uFlash:{value:0}, uFire:{value:0},",
+   "  SKYU.uFlash.value*=Math.exp(-dt*2.2);",
+   "function detonate(",
+   "    cov=smoothstep(0.50,0.78,n)*smoothstep(0.0,0.10,e)*(1.0-0.35*smoothstep(0.35,1.0,e));",
+   "    vec3 room=ttRoom(vLPos,ttN,ttRd,0.0)*ttC0;",
+   "  for(int i=0;i<NLIT;i++){ vec3 dv=uLP[i].xyz-vWp; float d=length(dv); float at=clamp(1.0-d/uLP[i].w,0.0,1.0); L+=uLC[i].rgb*(uLC[i].a*at*at*1.3); }"
+  ],
+  "est_lines": 40,
+  "perf_cost": "無視できる〜小。空の画素で pow 2 回、窓画素で 4 灯分の鏡面項。",
+  "impact": 6,
+  "risk": "低。uBoom の方向は毎フレーム固定（カメラが動くと斑の位置が追従しない）が減衰 0.3 秒なので目立たない。"
+ },
+ "K1": {
+  "id": "K1",
+  "title": "歌舞伎町の街路幅を実際の序列に直す（靖国通り30m／さくら通り11m）",
+  "category": "city",
+  "description": "layoutKabuki の ZW=[30,11,11,16,25,14] は「ZL[0]=靖国通り」の順で書かれているが、コードは逆向きに使っている。一番街アーチ（mkGate）は ZL[5]-ZW[5]/2-5（14m幅の通り）に建ち、初期視点 VIEWS[0] も ZL[5]+70 からアーチ越しに北を見る。結果、本物は 30m の幹線で車とタクシーが走る靖国通りが 14m の裏通り扱い（車線なし・信号なし・駐車車両と提灯あり）になり、本物は 11m の歩行者通りであるさくら通り（ZL[4]）が 25m の幹線になって車が走り、提灯も付かない（提灯は ZW<=16 の通りだけ）。さらに buildRoad のセントラルロードの路面色は ZL[0]〜ZL[4] に塗られ、アーチ側の区間（ZL[3]〜ZL[5]）には塗られていない。最初の画面に映る「靖国通り→アーチ→一番街」という歌舞伎町の顔が、幅も交通も逆になっている。",
+  "implementation": "1) layoutKabuki の ZW を [25, 11, 11, 16, 11, 30] に差し替える（ZL[0]=職安通り25m／ZL[3]=花道通り16m／ZL[4]=さくら通り11m／ZL[5]=靖国通り30m）。ZL[5]+15=283 < CITY.z1=300、ZL[0]-12.5=-274.5 > CITY.z0=-300 なので範囲は足りる。コメントも「ZL[5]=靖国通り30m（アーチ側）」に直す。2) buildRoad のセントラルロード路面色の fillRect を TZ(ZL[3]) 始まり・高さ (ZL[5]-ZL[3])*px に変え、アーチ側の区間を塗る。3) これにより自動で：靖国通りに車線（buildTraffic は ZW>=20）、区役所通り XL[1](20m) との交差点に信号（buildSignals は XW>=20&&ZW>=20）、靖国通りの駐車なし（placeCars は ZW>=20 を除外）、さくら通りに提灯・駐車・歩行者が付く。4) fillLot の区画境界は ZW から計算されるので建物側の変更は不要。mkGate の位置は ZL[5]-ZW[5]/2-5 で自動的に 8m 南へ動くので、VIEWS[0] の z=ZL[5]+70 を +78 にして見え方を保つ。5) 検証：probe_pc.mjs で __tt.genCity(0,1) 後に TRF.lanes.length が 2 本増えること、スクリーンショットでアーチの手前に 30m の通りと走る車が写ること。",
+  "anchors": [
+   "  ZW=[  30,  11,  11,  16,  25,  14];   // 靖国通り30m・職安通り25m",
+   "  g.fillRect(TX(XL[2]-XW[2]/2),TZ(ZL[0]),XW[2]*px,(ZL[4]-ZL[0])*px);",
+   "  { const _l=blds.length; mkGate(XL[2]-XW[2]/2-VOX*3, ZL[5]-ZW[5]/2-5, Math.round(XW[2]/VOX)+1); regLM(_l,'歌舞伎町一番街','GATE DOWN',0.5); }"
+  ],
+  "est_lines": 15,
+  "perf_cost": "無視できる：道路幅の定数と路面キャンバスの塗り範囲の変更のみ。靖国通りに車線が 2 本増える（車 +10〜15 台、TRF_MAX=360 内）",
+  "impact": 8,
+  "risk": "低〜中。ZW 変更で区画寸法が変わるため既存 seed の街の見た目が変わる（再挑戦は seed 単位なので互換の問題はない）。靖国通り×区役所通りに信号が立つので、交差点付近の建物と信号柱の重なりをスクリーンショットで一度確認する。"
+ },
+ "K2": {
+  "id": "K2",
+  "title": "セントラルロード（一番街）を歩行者天国にする：駐車ゼロ・人流 3 倍・車止め・提灯密度",
+  "category": "city",
+  "description": "XL[2]（16m、アーチと I♥歌舞伎町の通り）は本物では車が入らない歩行者の通りだが、placeCars は XW<20 の全通りに駐車車両を置くので路肩に車が並ぶ（除外は行き止まり区画 (2,2) だけ）。歩行者密度も全通り一律 0.030/m で、渋谷のセンター街（CGAI で 90 人追加）のような「人の川」が無い。歌舞伎町の実在感の中心はアーチをくぐった先の雑踏と看板の壁なので、ここに人を集中させる。",
+  "implementation": "1) placeCars の除外条件を `if(MAPID===0&&i===2) continue;` に広げ（行き止まりに限らず XL[2] 全体）、縦方向ループで XL[2] に駐車しない。2) buildPeds に歌舞伎町用の塊を追加：`if(MAPID===0){ for(let k=0;k<220;k++){ const x=XL[2]+rf(-XW[2]/2+1.5,XW[2]/2-1.5), t=rf(ZL[3]+ZW[3]/2+2, ZL[5]-ZW[5]/2-2); put(x,t,{m:0,ax:2,c:x,t:t,dir:Math.random()<.5?-1:1,v:rf(0.9,1.4),a:ZL[3]+ZW[3]/2+2,b:ZL[5]-ZW[5]/2-2}); } }`（CGAI の実装をそのまま流用。車道の中央まで歩く）。3) アーチの脇と花道通りとの T 字路に車止め：mkProp(…,'gate'風,3x2x3) で 5 本の鉄柱（素材 5）を 2m 間隔に並べる関数 mkBollards(x0,z,n) を追加し、ZL[5]-ZW[5]/2-1 と ZL[3]+ZW[3]/2+1 に置く。4) buildLanterns の条件 `XW[i]<=16` は XL[2] を含むので、XL[2] だけ `rf(7,13)` を `rf(4,7)` にして提灯の間隔を半分にする（LAN 上限 398 内に収まるか、生成後に LAN.list.length を確認）。5) buildRoad の MAPID===0 ブロックに、XL[2] 区間の路面をタイル舗装色（CGAI と同じ '#2b2a2c' + 横線）で塗る。",
+  "anchors": [
+   "      if(MAPID===0&&i===2&&j===2) continue;           // 行き止まりの先は建物",
+   "  if(MAPID===1&&CGAI){                                      // センター街は人通りが多い",
+   "  for(let i=0;i<XL.length;i++) if(XW[i]<=16) for(const sd of [-1,1]){"
+  ],
+  "est_lines": 45,
+  "perf_cost": "小：歩行者 +220（PED_MAX 1600 内、updPeds のループが 14% 増）、提灯 +40 個程度（InstancedMesh、固定）。M5 では 0.1ms 未満",
+  "impact": 7,
+  "risk": "低。歩行者は bldAt で建物内を避けるので配置で壊れない。提灯上限 398 を超えると後半の通りに提灯が付かなくなるので、XL[2] の密度上げは上限確認が必要。"
+ },
+ "K3": {
+  "id": "K3",
+  "title": "歌舞伎町の空き区画を埋める：区画 (1,0)・(4,1) の 85% が空き地",
+  "category": "city",
+  "description": "buildKabuki は区画 (1,0) と (4,1) を「超高層タワー A/B」として fillLot から除外した後、「歌舞伎町に超高層は無い」として中央に 16×16 と 14×14 マス（22m・20m 角）のオフィスを 1 棟置くだけ。区画は 83×62m と 110×104m あるので、どちらも 8 割以上が歩道色の空き地になっている。上空から見ても、靖国通りから見ても、密集が売りの歌舞伎町に不自然な空白が 2 つある。",
+  "implementation": "1) `if(i===1&&j===0) continue;` と `if(i===4&&j===1) continue;` を削除して fillLot に任せる（fillLot は 27m 格子で雑居ビルを詰める）。2) 代わりに区画 (4,1) の靖国通り寄りの角（本物で区役所通りと靖国通りの間に大型ディスカウント店があるのに倣う）に K4 のディスカウント店を置くなら、(4,1) は continue を残して「fillLot(XL[4]+XW[4]/2+1.5, ZL[1]+ZW[1]/2+1.5, XL[5]-XW[5]/2-1.5, ZL[2]-ZW[2]/2-1.5-40)」のように南側 40m を空けてから K4 の建物を入れる。3) 2 棟の既存 mkBuilding('office',4211 / 9137) は削除（fillLot の 'office' 枠が 8% の確率で同等品を出す）。4) 検証：genCity(0,seed) 後の blds.length が +20〜30 棟、俯瞰（T キー）スクリーンショットで空白が無いこと。",
+  "anchors": [
+   "    if(i===1&&j===0) continue;                     // 超高層タワーA",
+   "    if(i===4&&j===1) continue;                     // 超高層タワーB",
+   "  mkBuilding((XL[1]+XL[2])/2-16, (ZL[0]+ZL[1])/2-16, 16, 16, 32, 'office', 4211,",
+   "  mkBuilding((XL[4]+XL[5])/2-14, (ZL[1]+ZL[2])/2-14, 14, 14, 28, 'office', 9137,"
+  ],
+  "est_lines": 12,
+  "perf_cost": "小：建物 +25 棟（約 +8%）。メッシュは deferMesh で数フレームに分けて作られる。M5 では描画 +0.2ms 程度",
+  "impact": 7,
+  "risk": "低。fillLot は既存の仕組み。生成時間が少し伸びるので boot の「街を構築中」表示に影響しないか確認。"
+ },
+ "K4": {
+  "id": "K4",
+  "title": "黄色と黒の縦看板のディスカウント店（ドンキ風）とシネマの正面ビジョンを靖国通り沿いに",
+  "category": "city",
+  "description": "歌舞伎町の同定要素のうち、ゴジラヘッド・一番街アーチ・I♥歌舞伎町・歌舞伎町タワーは実装済みだが、靖国通り沿いで最も目立つ「黄色い壁に黒い縦看板のディスカウントストア」が無い。また新宿東宝ビルの低層部の大型看板は `fill(2,y,0, W-3,y+2,0, 7/11)` のネオン帯だけで、映画館の正面らしい「ポスター壁面」がない。看板シェーダー（SIGNS、kind=2 の大型ビジョン）は枠が 6 枚しかなく歌舞伎町では 4 枚使用中なので、K5/S3 の NSIGN 拡張と合わせて 2 枚を割り当てる。コードの方針（企業ロゴは扱わない）に従い、名称はゲーム内で「激安ディスカウント」「シネマ」とし、色と形で分からせる。",
+  "implementation": "1) mkDiscount(fx,fz) を mkProp で追加：W=22,D=16,H=26（8 階建て 36m）。外壁は素材 11（黄）を基調に、各階の窓帯を 2/4、角に 26（黒）。正面（z=D-1 面）の左端 x=2..5 に y=4..H-1 の黒(26)地の縦看板を張り出し（fill(2,4,D,5,H-1,D+2,26)、MG 相当の余白を取るため W を +4）、その黒地に addSign(o,[1,0],3*VOX,(H-5)*VOX, SIGN_ATLAS.love 相当の縦書き枠, kind 0, pitch .14) で赤 LED の縦文字を流す（initSigns の atlas に縦書き「激安」「ディスカウント」を 1 枠追加し、SIGN_ATLAS.disc=[x0,y0,x1,y1] を定義）。1 階は 3（灯った窓）で全面ガラス、庇は 14。2) 配置：K3 で空けた区画 (4,1) の靖国通り寄り、またはアーチの東隣（区画 (3,4) の南端、fillLot の前に continue で確保）に置き、regLM(_l,'激安ディスカウント','DISCOUNT STORE DOWN')。3) 東宝ビル：`// ── 低層部の大型看板（正面） ──` の直後に `addSign([fx+2*VOX, 6*VOX, fz], [-1,0]…` ではなく、正面が z=0 面なので o=[fx+(W-3)*VOX, 6*VOX, fz]、rgt=[-1,0]、w=(W-5)*VOX、h=8*VOX、SIGN_ATLAS.vision、kind 2 を mkToho の戻り値 b に対して登録（mkToho の return を const b= に受けて if(b) addSign(...)）。4) NSIGN は S3 と同時に 12 へ。",
+  "anchors": [
+   "    // ── 低層部の大型看板（正面） ──",
+   "  { const _l=blds.length; mkToho(XL[2]+XW[2]/2+8, ZL[2]+ZW[2]/2+14); regLM(_l,'新宿東宝ビル','GODZILLA FALLS'); }",
+   "const SIGN_ATLAS={love:[0,0,232/1024,1], gate:[0.25,1-118/1024,1,1], vision:[0.25,1-330/1024,1,1-130/1024], center:[0.25,1-460/1024,1,1-340/1024]};"
+  ],
+  "est_lines": 90,
+  "perf_cost": "小：建物 1 棟＋看板 2 枚。看板シェーダーは全フラグメントで NSIGN 回の早期判定ループなので、枚数が 6→8 になっても 5.9MP で 0.1ms 未満",
+  "impact": 7,
+  "risk": "中。看板アトラス（1024²）の空き領域に縦書き枠を追加する必要があり、既存の love/gate/vision/center と重ならない座標を initSigns で確保する。S3（NSIGN 拡張）が前提。"
+ },
+ "K5": {
+  "id": "K5",
+  "title": "一番街・さくら通りの袖看板を「積層」にする（1 棟 1 枚 → 2〜4 枚）",
+  "category": "city",
+  "description": "mkBuilding の袖看板は `R()<dense*0.55` で 1 棟に最大 1 枚、縦看板も 1 枚。本物の一番街・さくら通り・区役所通りは 1 棟の通り側の面に 3〜5 枚の袖看板が高さ違いで並び、その密度が「歌舞伎町らしさ」の大半を作る。現状は看板がまばらで、雑居ビルの壁が見えすぎる。看板は NEON 素材（7/8/11/16/17）で発光し、buildLightMap の照り返しと buildHalos の光暈に自動で乗るので、枚数を増やすだけで夜景の情報量が上がる。",
+  "implementation": "1) mkBuilding の opt に `signs`（1〜4、既定 1）を追加し、袖看板ブロックを `const nS=opt.signs||1; for(let s=0;s<nS;s++){ … }` で囲む。各枚は y0 を `g1+RI(0,2)+s*Math.floor((H-g1-3)/nS)`、高さ `RI(5,9)` に変え（現状は y0=g1 から H-1 まで 1 枚）、せり出し d=RI(3,5)、幅 wdt=RI(2,3)、素材は毎回 NEON から引く。同じ面の中央列 zc/xc ではなく `zc=fZ0+RI(2,fd-3)` で位置をずらす。2) 看板の鉄骨は 1 枚目だけ（面数を抑える）。3) fillLot で、MAPID===0 かつ faces に XL[2] 向き（区画 i===1 の面 1、i===2 の面 0）または ZW<=11 の通り向きが含まれる建物に `signs: RI2(2,4)` を渡す。それ以外は既定 1。4) addHalo/buildLightMap は素材から自動で拾うので変更不要。5) 検証：genCity(0,seed) 後の totalVox が +3〜5%、スクリーンショットでセントラルロード両側の看板が重なって見えること。",
+  "anchors": [
+   "  if((style==='zakkyo'||style==='shop') && H>12 && R()<dense*0.55){",
+   "    if(r<.18){ H=RI2(8,12);   style='shop';   dense=.98; }   // 3〜4階"
+  ],
+  "est_lines": 40,
+  "perf_cost": "小〜中：看板 1 枚＝張り出した箱なので greedy 後に 5〜6 面。対象 60 棟×平均 +2 枚＝+700 面程度。光暈 Points と光の地図の構築が数 ms 増えるが生成時のみ",
+  "impact": 8,
+  "risk": "低〜中。張り出しは MG=4 マス（5.6m）の余白内に収める（d<=4）。看板同士が同じ高さで重ならないよう s ごとの y0 帯を分ける。"
+ },
+ "S1": {
+  "id": "S1",
+  "title": "渋谷駅前をハチ公前広場にする：舗装・像・滞留する群衆・バス乗り場",
+  "category": "city",
+  "description": "buildShibuya は区画 (1,1) を「駅前の広場」として fillLot から外し、26×20 マス（36×28m）の駅舎を 1 棟置くだけ。区画は 96×100m あるので大半が何も無い暗い歩道色で、広場というより空き地。本物の渋谷の同定要素は 109・QFRONT に加えて「ハチ公前の人だかり」「駅前のバス乗り場に並ぶ緑のバス」なのに、どちらも無い。歩行者は全員が歩道を往復するだけで、広場に立ち止まる人がいない。",
+  "implementation": "1) `// 駅舎（低く広い）` の直後に mkProp で広場（シネシティ広場の実装を流用）：区画 (1,1) の駅舎以外の範囲を W×1×D の石畳（素材 13/9 の市松、縁 22）で敷く。2) ハチ公像：mkProp(…,'statue',5×6×7) で台座（26 黒御影 3×2×4）の上に犬（素材 24 茶タイルで胴 3×2×4・頭 2×2×2・耳）を積み、交差点側（XL[2] 寄り、ZL[2] 寄り）の角から 14m の位置に置く。regLM はしない（倒壊対象にしない方が自然）。3) 滞留群衆：buildPeds の `if(MAPID===1){` ブロックに `PED.plaza={x:像x, z:像z}` を定義し、for 120 人を半径 4〜14m にランダム配置、`{m:2, ci:-1, v:0}`（m=2 は既存の「信号待ち」静止状態。updPeds の m===2 は ci を参照するスクランブル切替があるので、`if(scr&&!PED.scr) for(const p of L) if(p.m===2&&p.ci>=0)` と ci>=0 の条件を足す）。さらに 30 秒ごとに 10% を m=0 に変えて歩道へ流す。4) バス乗り場：区画 (1,1) の明治通り側（XL[2]-XW[2]/2 から西へ 30m）に 4 台分の白線を buildRoad で描き、PARKED に `{x,z,ang:Math.PI/2,bus:true}` を 4 件 push（V1 のバス描画が前提。V1 未実装なら通常車で可）。5) 街灯 3 本（L1 の mkLamp）を広場に。",
+  "anchors": [
+   "    if(i===1&&j===1) continue;              // 駅前の広場",
+   "  // 駅舎（低く広い）",
+   "  if(MAPID===1){                                            // スクランブル交差点の四つ角で信号を待つ人",
+   "    } else if(p.m===3){"
+  ],
+  "est_lines": 80,
+  "perf_cost": "小：広場は 1 枚の平らなメッシュ（greedy で数十面）。歩行者 +120。バス 4 台",
+  "impact": 8,
+  "risk": "中。updPeds の m===2 分岐はスクランブル切替専用なので ci>=0 の条件を足さないと広場の人が交差点に歩き出す。広場メッシュは bldAt に乗るので、歩行者の put が bldAt(x,1,z) で弾かれる→ 広場の高さを y=0 の 1 層にし、put の判定を `bldAt(x,2,z)` にする（他マップへの影響は無いか suite で確認）。"
+ },
+ "S2": {
+  "id": "S2",
+  "title": "スクランブル交差点の人流を本物の規模に：四つ角 34 人→120 人、横断の波、上限 2600",
+  "category": "city",
+  "description": "現状の四つ角待機は 34 人×4＝136 人で、横断の瞬間も 136 人が散らばるだけ。本物の青信号 1 回で 2,000〜3,000 人が渡り、上空から見ると 4 隅から中央へ向かう「人の波」が交差点を埋める。M5 では InstancedMesh 2 枚（胴・頭）の 2,600 体は GPU 的に軽く、updPeds の CPU ループも 0.3ms 程度なので、PED_MAX を上げて渋谷だけ密度を上げる価値が高い。また渡り始めが全員同時（p.m=3 に一斉切替）なので波に厚みが無い。",
+  "implementation": "1) `const PED_MAX=1600;` を 2600 に（QLV.ped で中以下は 0.7/0.4 倍に自動で削られる）。2) `for(let k=0;k<34;k++)` を `for(let k=0;k<Math.round(120*QUAL.pedK);k++)` にし、待機位置を `q[2]*rf(0,9), q[3]*rf(0,9)` に広げる（歩道の奥行きは MG 余白込みで約 7m）。3) 横断の波：切替時に p.m=3 にする代わりに `p.m=4; p.wait=rf(0,5)` とし、updPeds に `else if(p.m===4){ p.wait-=dt; if(p.wait<=0) p.m=3; }` を追加（先頭から順に渡り出す）。目的地は現状どおり別の角、斜め横断が 50% になるよう `tc` の選び方を `Math.random()<.5 ? 3-p.ci : (ランダムな隣の角)` に。4) 渡っている間は速度 rf(1.3,1.9) のまま、交差点中央で互いに重ならないよう目的点に `rf(-6,6)` の横ずれを足す。5) QLV の ped を [1.0,1.0,0.7,0.4,0.2] のまま使い、ultra/high のみ満員になる。6) 検証：probe で `__tt.genCity(1,1); PED.list.length` が 1,900 以上（ultra）、30 秒後のスクリーンショットで交差点が人で埋まること。",
+  "anchors": [
+   "const PED_MAX=1600;",
+   "    PED.corners.forEach((q,ci)=>{ for(let k=0;k<34;k++)",
+   "  {mp:99,   refl:1, smoke:260, ped:1.0,  mips:6, msaa:true,  ao:1, streak:1},   // 最高：ネイティブ解像度・SSAO・反射を毎フレーム"
+  ],
+  "est_lines": 30,
+  "perf_cost": "小：歩行者 2,600 体＝InstancedMesh 2 枚、頂点 2,600×(36+36)。updPeds の行列書き込み 2,600×2 で約 0.3ms（120Hz の 8.3ms 予算の 4%）。中画質以下は pedK で自動減",
+  "impact": 8,
+  "risk": "低。pedsBlast・updPeds の m 状態機械に m=4 を追加するだけ。PED.body の初期化（initPeds）は PED_MAX を使うので定数変更で追従する。"
+ },
+ "S3": {
+  "id": "S3",
+  "title": "大型ビジョンの枠を 6→12 枚に拡張し、交差点の 4 隅すべてと 109・東宝に割り当てる（北東角の空き地も埋める）",
+  "category": "city",
+  "description": "看板シェーダーは `#define NSIGN 6`・uSgO 等の配列長 6・addSign の `SIGNS.length>=6` で 6 枚固定。渋谷は QFRONT 2 枚＋センター街 1 枚で 3 枚使った後、addScreensAtCrossing が残り 3 枚を四つ角に配るが、北東の角（区画 (2,1)）は mkMegaTower(…,62,8123) が角から 66m 離れた位置にあるだけで、探索半径 30m に H>=30m の建物が無く、ビジョンが付かない。しかも区画 (2,1) は 100×100m のうちその 28m 角のタワー以外が空き地。本物のスクランブルは 4 隅＋109 の壁面で 6 面以上のビジョンが同時に動く。歌舞伎町も 4 枚使用済みで東宝の正面やディスカウント店（K4）に回す枠が無い。",
+  "implementation": "1) `#define NSIGN 6` → 12、`uSgO/uSgR/uSgA/uSgP:{value:Array.from({length:6}…` の 4 つを 12 に、`if(SIGNS.length>=6) return;`（addSign）と `if(SIGNS.length>=6) break;`（addScreensAtCrossing）を 12 に、`customProgramCacheKey=()=>'tt_lit_23'` を 'tt_lit_24' に（シェーダー再コンパイル）。2) 区画 (2,1)：`if(i===2&&j===1) continue;` を外して fillLot に任せ、mkMegaTower(…,62,8123) は交差点の角 `XL[2]+XW[2]/2+2, ZL[2]-ZW[2]/2-2-20*VOX` に移して角に密着させる（addScreensAtCrossing が拾える距離に）。fillLot と重ならないよう、fillLot の呼び出し範囲を `ZL[1]+ZW[1]/2+2 〜 ZL[2]-ZW[2]/2-2-20*VOX-3` に縮める。3) addScreensAtCrossing の探索半径 30→40m にし、各角 1 枚に加えて 109 に 1 枚：mk109 の戻り値 b に対し `addSign([fx+2*VOX, 7*VOX, fz+(D-4)*VOX], [0,-1], 10*VOX, 12*VOX, SIGN_ATLAS.vision, 2, 0, b)`（x=2 の面、交差点側の壁面広告）。4) 歌舞伎町：K4 の東宝正面・ディスカウント店縦看板を登録。5) 検証：genCity(1,seed) 後 `SIGNS.length` が 8 以上、ttSign の WebGL エラーが無いこと（probe のコンソール出力）。",
+  "anchors": [
+   "#define NSIGN 6",
+   "uSgO:{value:Array.from({length:6},()=>new THREE.Vector4())},",
+   "  if(SIGNS.length>=6) return;",
+   "    if(SIGNS.length>=6) break;",
+   "  mat.customProgramCacheKey=()=>'tt_lit_23';",
+   "    if(i===2&&j===1) continue;              // 109的なランドマーク",
+   "  mkMegaTower(XL[2]+XW[2]/2+10, ZL[1]+ZW[1]/2+10, 20, 20, 62, 8123);",
+   "  { const _l=blds.length; mk109(XL[1]+XW[1]/2+16, ZL[2]+ZW[2]/2+16); regLM(_l,'SHIBUYA109','109 FALLS'); }"
+  ],
+  "est_lines": 40,
+  "perf_cost": "小：ttSign は毎フラグメントで `if(float(i)>=uSgN) break;` 付きのループ。枚数 12 でも 1 フラグメントあたり 12 回の内積比較＝5.9MP で約 0.2ms。ビジョン本体（kind 2 の映像生成）は看板の面のフラグメントだけで実行される",
+  "impact": 8,
+  "risk": "中。uniform 配列を 12 に増やすと vec4×48 の uniform が増えるが WebGL2 の上限（1024 vec4）に余裕。シェーダーのキャッシュキー更新を忘れると古いプログラムが使われ看板が消える。区画 (2,1) の fillLot 範囲縮小でタワーとの重なりを目視確認。"
+ },
+ "N1": {
+  "id": "N1",
+  "title": "西新宿：都庁第二本庁舎と都民広場（半円の列柱）を加えて都庁を「3 棟＋広場」の構成にする",
+  "category": "city",
+  "description": "buildHigh は区画 (1,1) の中央に第一本庁舎（mkMetroGov、双塔）を置き、南に都議会議事堂（mkAssembly）を置く。本物の都庁は第一本庁舎（243m）・第二本庁舎（163m、2 段の階段状）・議事堂の 3 棟が半円形の都民広場を囲み、広場は 2 階レベルの列柱回廊で縁取られる。遠景では双塔のシルエットで分かるが、近づくと「広場の無い双塔」で都庁らしさが半減する。第二本庁舎は市松模様の外装（既存 mkMetroGov の低層部ロジックを流用）で 34F と 37F の 2 段なので実装コストは低い。",
+  "implementation": "1) mkMetroGov2(fx,fz) を追加：W=30,D=26、H1=86（120m/1.4）・H2=116（163m/1.4）、x<16 の部分を H2、x>=16 を H1 まで積み、外装は mkMetroGov の低層部と同じ `((gx+gz+gy)%2===0) ? 26 : officeWin(x,y,z,seed,8)` の市松、y%8 の床スラブ、四隅に 26 のシャフト。頂部に航空障害灯 19。2) 配置：第一本庁舎の cx-31 に対し、第二は `mkMetroGov2(cx-31-30*VOX-12, cz-10)`（第一の西隣、12m の隙間）とし regLM(_l,'東京都庁第二本庁舎','METRO GOV 2 FALLS',0.4)。区画 (1,1) の幅は 134m、第一(48 マス=67m)+第二(42m)+隙間 12m=121m で収まる。3) 都民広場：mkAssembly の手前（第一本庁舎と議事堂の間、gz+20〜gz+50）に mkPlaza：半径 R=22m の半円を 1 層の石畳（素材 13 と 22 の同心円）で敷き、半円の弧に沿って 2 階レベル（y=5〜6）の列柱回廊（柱 1（コンクリ）を 3m 間隔、上に 1 層の床 23）を置く。4) 広場に歩行者の滞留（S1 の m=2 流用、60 人）と街灯 6 本。5) buildHigh の LM テーブルに 'gov2' を足さず、gov の直後に直接呼ぶ（区画の used 判定に影響させない）。",
+  "anchors": [
+   "    if(L[0]==='gov')    mkMetroGov(cx-31, cz-21);",
+   "    const _l=blds.length; mkAssembly(gx-28, gz+52); regLM(_l,'都議会議事堂','ASSEMBLY HALL DOWN');",
+   "function mkMetroGov(fx,fz){"
+  ],
+  "est_lines": 110,
+  "perf_cost": "小：建物 1 棟（約 1.2 万ボクセル、greedy 後 3〜4 千面）＋広場 1 枚。生成時に +30ms",
+  "impact": 7,
+  "risk": "低〜中。区画 (1,1) 内の既存 mkMetroGov・mkAssembly との重なりを座標計算で避ける（上記の値は XL/ZL の現値に基づく。layoutHigh を変える場合は再計算）。regLM の閾値は 0.4 で単塔の既定どおり。"
+ },
+ "N2": {
+  "id": "N2",
+  "title": "西新宿の街区を「駐車場に立つ 1 本塔」から「基壇＋サンクンガーデン＋中層の群」に",
+  "category": "city",
+  "description": "buildHigh の一般区画は 134×130m の区画中央に mkPodium（基壇）と 1 本の mkMegaTower、55% の確率で小さな 9×9 の別棟があるだけ。本物の西新宿は超高層の足元に 2〜3 棟の中層（50〜90m）、サンクンガーデン（住友の三角広場、新宿センタービルの地下広場）、中央通りの中央分離帯の植栽が密に並び、タワーの間隔が「詰まって」見える。現状は区画の半分が空いた歩道色で、超高層街の圧迫感が出ない。また `// ③ 中央通りの銀杏並木` はコメントだけで、placeStreetTrees(34) は歩道側にしか植えない（中央通りの中央分離帯が無い）。",
+  "implementation": "1) 一般区画のループで、タワーの後に `for(let k=0;k<2;k++){ const side=k?1:-1; mkBuilding(cx+side*(w*VOX/2+16), cz+(k?-40:28), 12, 14, 36+((Math.random()*24)|0), 'office', (i*11+j*5+k)|0, {faces:[0,1,2,3], dense:.55}); }` を加え、中層（50〜84m）を区画の対角に 2 棟置く。2) サンクンガーデン：区画の空いた角に mkProp(…,'plaza', 20×3×20) で 1 層下げた石畳（素材 9）と階段（22）、周囲の手すり（18）、中央に樹木 3 本（mkTree）。確率 50%。3) 中央分離帯の銀杏：placeStreetTrees に `median` 引数を足し、XW>=36 の通り（中央通り 40m）では side=0（通りの中心）にも 17m 間隔で mkTree を植える。buildTraffic の車線は c=XL[i]±2.3 なので中心線上の樹木（7 マス=9.8m 幅）と干渉する→ XW>=36 の通りの車線を ±6.0 にずらす（`TRF.lanes.push({ax:2,c:XL[i]-2.3,…` の 2.3 を `XW[i]>=36?6.0:2.3` に）。4) 既存の 9×9 別棟は削除。5) HS の高さ表はそのまま。",
+  "anchors": [
+   "  const HS=[180,152,196,138,168,146,204,160];",
+   "    mkPodium(cx, cz, w*VOX/2, w*VOX/2, i*7+j);      // ① 足元の基壇",
+   "  // ③ 中央通りの銀杏並木",
+   "  placeStreetTrees(34);",
+   "    TRF.lanes.push({ax:2,c:XL[i]-2.3,dir:-1,a:z0,b:z1}); TRF.lanes.push({ax:2,c:XL[i]+2.3,dir:1,a:z0,b:z1}); }"
+  ],
+  "est_lines": 70,
+  "perf_cost": "中：建物 +10〜12 棟（中層 50〜84m は各 2〜3 千面）、樹木 +40 本（各 7×13×7 の疎な球で 300〜500 面）。生成時 +100ms、描画 +0.3ms。cityTop・meshQTotal は自動追従",
+  "impact": 7,
+  "risk": "中。中層棟とタワー・基壇の重なりを座標で避ける（基壇は W=w+8 マス、中層は w*VOX/2+16 以上離す）。車線を ±6.0 にずらすと信号の停止位置判定（SIG の hw/hd）は中心からの距離なので影響なし。"
+ },
+ "V1": {
+  "id": "V1",
+  "title": "車種を増やす：路線バス（緑帯）・トラック・黒塗りハイヤーと、大通りの停留所",
+  "category": "city",
+  "description": "走る車は 4.4m の乗用車 1 種類（TRF.body/cabin）で、タクシーは色と行灯の違いだけ。mkCar には van/truck の定義があるが呼ばれておらず（定義のみ）、走行車には使われない。東京の大通りの実在感は「緑帯の都バス」「黒いハイヤー」「配送トラック」の混在で決まるのに、靖国通り・明治通り・中央通りが乗用車だけで、スケール感も単調。InstancedMesh を 1 枚足すだけでバスを混ぜられる。",
+  "implementation": "1) initTraffic に `TRF.bus=mk(box(11.0,3.0,2.5,0,1.5),64,mB)` と窓帯 `TRF.busWin=mk(box(10.2,0.9,2.56,0,2.3),64,mB)`、トラック `TRF.truck=mk(box(7.5,2.6,2.2,0.6,1.3),96,mB)` を追加（キャビンは body を流用）。2) buildTraffic で車線幅 ZW/XW>=24 の車線のみ `const kind=Math.random()<.10?'bus':(Math.random()<.14?'truck':'car')`、バスは v=rf(7,10)、色は [.16,.40,.24]（緑帯）か渋谷なら [.82,.36,.18]（コミュニティバス風）、トラックは白 [.86,.86,.84]。3) updTraffic の描画で `if(c.kind==='bus'){ busN++ 用の行列に put; CB 色; continue; }` と分岐し、body/cabin には積まない（body.count は乗用車数に）。ランプ 4 灯はそのまま位置を kind で ±5.4 / ±3.7 に。4) 車間判定 `(gap-11)*.9` はバスの長さを考慮して `gap-(c.kind==='bus'?18:11)`。5) wreckCar/trafficBlast は carXZ 経由なのでそのまま動く。6) 停留所：XW/ZW>=24 の通りの区画中央に mkProp(…,'busstop', 2×6×2) の標識柱（5 の柱＋上に 27 の灯り）と、buildPeds で 6 人の待ち列（m=2, ci=-1、S1 の条件を流用）。7) ハイヤー：CAR_COLS の黒 [.09,.09,.10] をタクシー率 28% のうち 30% を「行灯なしの黒」にして `taxi:false` でも roof を出さない（現状のまま色を増やすだけ）。",
+  "anchors": [
+   "  TRF.roof=mk(box(.30,.24,.52,0,0),TRF_MAX,mB);                          // タクシーの行灯",
+   "      const taxi=Math.random()<.28;                        // 約3割は濃紺のタクシー",
+   "  const MR=TRF.roof.instanceMatrix.array, CR=TRF.roof.instanceColor.array;",
+   "const TRF_MAX=360;"
+  ],
+  "est_lines": 90,
+  "perf_cost": "小：InstancedMesh +3 枚（各 1 ドローコール）、インスタンス数は TRF_MAX 内の振り分け。updTraffic の分岐が増えるだけで CPU は変わらない",
+  "impact": 7,
+  "risk": "中。updTraffic の描画ループは C の添字 i をそのまま body/cabin/lamp のインスタンス番号に使っているので、バスを別メッシュに逃がす際は乗用車用のカウンタ nc を別に持ち、lamp の o=(i*4+k) も nc 基準に変える必要がある（ここを間違えると行列がずれて車が消える）。probe で `TRF.cars.length` と `TRF.body.count+TRF.bus.count+TRF.truck.count` が一致することを確認。"
+ },
+ "U1": {
+  "id": "U1",
+  "title": "ランドマークの「解説カード」：照準が初めて捉えた時に名前・高さ・特徴を 4 秒表示（キーボードのみで完結）",
+  "category": "ui",
+  "description": "regLM で登録されたランドマーク（東宝ビル・109・都庁など 20 件以上）は、照準下のターゲットカード（xhTgt）に名前が出るだけで、「なぜそれが東京らしいのか」をプレイヤーに伝える場が無い。各 mkXxx のコメントには実測の高さ・年・特徴（「243m、150m 地点で双塔に分かれる」「地上 8 階のテラスに全長 12m のゴジラ」）が既に書かれているので、それを regLM のデータに 1 行ずつ持たせ、初めて照準に入った時だけ右上に 4 秒のカードを出す。実在感は「見た目」と「知っていること」の掛け算なので、建物の造り込みへの投資がプレイヤーに伝わる。",
+  "implementation": "1) regLM(from,name,en,th,info) に第 5 引数 info（文字列）を足し、LMS の要素に `info, seen:false` を保存。各 regLM 呼び出しに 1 行の解説を追加（例：'東京都庁','METRO GOVERNMENT FALLS',0.62,'243m・1990年。150m地点で双塔に分かれ、45階に展望室'）。2) ui_pc.js の `el.tgt.textContent=targetLabel(h);` の直後に `const L=h.b&&h.b.lm>=0?LMS[h.b.lm]:null; if(L&&!L.seen&&!L.fell){ L.seen=true; lmCard(L); }` を足す。3) lmCard(L)：body_pc.html に `<div id=\"lmCard\"><b></b><i></i><span></span></div>` を追加、style_pc.css に右上固定・ゴールド枠・4 秒のフェード（.on クラス、既存の .fd/.co のトーンに合わせる）。表示中に別のランドマークが入ったら差し替え。4) genCity の再生成で seen を false に戻す（LMS は resetWorld で空になるので自動）。5) 設定 PCS.hud=false の時は出さない。6) 検証：probe で `__tt.cam` を東宝ビルに向け `__tt.pc.key('ArrowUp',true)` 等で照準を合わせ、`document.getElementById('lmCard').classList.contains('on')` を確認。",
+  "anchors": [
+   "function regLM(from, name, en, th){",
+   "  LMS.push({name:name, en:en||'LANDMARK DOWN', ids:ids, init:init, fell:false, th:th||0.40});",
+   "  el.tgt.classList.toggle('lm',!!lm);"
+  ],
+  "est_lines": 50,
+  "perf_cost": "無視できる：DOM 1 要素の表示切替。毎フレームの処理は照準更新の既存パスに 1 比較が増えるだけ",
+  "impact": 6,
+  "risk": "低。regLM の呼び出しは 20 か所以上あり、info を省略した場合も動くよう既定値 '' にする。13_hud2.py の xhTgt 変更（lm クラス）と同じ関数を触るので、feat モジュールの適用順（14_ 以降）に置く。"
+ },
+ "K6": {
+  "id": "K6",
+  "title": "ゴールデン街と路地を「縫う」：区役所通り側の裏路地網と、路地に面した小店舗の提灯・室外機・ごみ箱",
+  "category": "city",
+  "description": "mkAlleyBuildings は区画を 2 列に割って 1 本の路地を通すだけ（34% の区画）で、路地は直線 1 本・両端が通りに抜ける。本物の歌舞伎町の裏は、路地が L 字や T 字に折れて小さな中庭や行き止まりを作り、路地側には店の勝手口・室外機・ビールケース・ごみ集積所が並ぶ。ゴールデン街（mkGoldenGai）は 4 列×5 行の長屋だが、列の間（15m 間隔で D=8 マス=11m の長屋）に 4m の路地があるだけで、本物の 2m 幅の路地 6 本（G1〜花園五番街）の密度に届かず、路地に提灯が無い（buildLanterns は通り沿いの bldAt 判定で、路地には届かない）。",
+  "implementation": "1) mkAlleyBuildings に `cross` モード：n>=3 の時に中央の建物 1 つを抜いて横路地を作り、T 字にする（抜いた位置の両隣の faces に路地向きの面を追加して袖看板が路地に向く）。2) 路地の設備：路地の両側の建物に沿って 6m 間隔で mkUtility 'vend'（既存）に加え、新規 kind 'bin'（1×2×1 の 20 ダクト色の箱 2 個）と 'ac'（壁から 1 マス張り出す室外機、建物の face 側に set(…,20)）を置く関数 placeAlleyProps(x0,z0,x1,z1,vertical) を追加し、mkAlleyBuildings の末尾で呼ぶ。3) 路地の提灯：buildLanterns の末尾に ALLEYS 配列（mkAlleyBuildings が {x0,z0,x1,z1,vertical} を push、resetWorld で空に）を走査して、路地の両端から 5m 間隔で push(x,z,sx,sz,red) を追加。4) ゴールデン街：mkGoldenGai の `z0+j*15` を `z0+j*13.5`（路地 2.5m）にし、cols を 4→5、各路地の入口（通り側）に小さな門型（mkProp 5×6×1、素材 15 の柱に 11 の横看板）を置いて「G1〜G5」の雰囲気を出す（文字は不要）。5) 検証：genCity(0,seed) のスクリーンショット（俯瞰）で T 字の路地と、路地に提灯の列が見えること。",
+  "anchors": [
+   "function mkAlleyBuildings(x0,z0,x1,z1,seed){",
+   "  if(Math.random()<0.34 && mkAlleyBuildings(x0,z0,x1,z1,(x0+z0)|0)) return;",
+   "function mkGoldenGai(x0,z0,cols,rows){",
+   "    const b=mkProp(x0, z0+j*15, W, H+4, D, 'shop',(set,fill)=>{"
+  ],
+  "est_lines": 80,
+  "perf_cost": "小：小 prop が +60〜100 個（各 10 面以下）、提灯 +60（上限 398 に注意、K2 と合わせて配分）。blds.length が増えるので buildGrid・bldAt は変わらず O(1)",
+  "impact": 6,
+  "risk": "中。路地幅を 2.5m にするとカメラ（cam の最低高度・衝突）が入れないが、本作は空中視点なので問題ない。提灯の上限 398 を K2 と分け合う必要があり、超過分は切り捨てられる（上限を 600 に上げる場合は initLanterns の 400 も変更）。"
+ }
+}

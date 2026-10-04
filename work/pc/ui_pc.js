@@ -520,13 +520,13 @@ function knavMove(dx,dy){
     const q=it[k].getBoundingClientRect(); const ddx=q.left+q.width/2-cx, ddy=q.top+q.height/2-cy;
     const along=ddx*dx+ddy*dy; if(along<=4) continue;
     const perp=Math.abs(ddx*dy-ddy*dx);
-    const sc=along*along+perp*perp*6; if(sc<bd){ bd=sc; best=k; } }
+    const sc=along*along+perp*perp*25; if(sc<bd){ bd=sc; best=k; } }   // 押した方向に並んでいるものを優先（横にずれた近いものより、遠くても同じ行/列）
   if(best<0){ // 端まで来たら反対側へ回り込む
     for(let k=0;k<it.length;k++){ if(it[k]===cur) continue;
       const q=it[k].getBoundingClientRect(); const ddx=q.left+q.width/2-cx, ddy=q.top+q.height/2-cy;
       const along=-(ddx*dx+ddy*dy); if(along<=4) continue;
       const perp=Math.abs(ddx*dy-ddy*dx);
-      const sc=-along*along+perp*perp*6; if(sc<bd){ bd=sc; best=k; } }
+      const sc=-along*along+perp*perp*25; if(sc<bd){ bd=sc; best=k; } }
   }
   if(best>=0){ knavSet(best); Snd.kick(); }
 }

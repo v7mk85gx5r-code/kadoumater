@@ -43,7 +43,16 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
 #tLogo .c{font-size:14px;letter-spacing:.34em;color:var(--mag);font-weight:900;margin-top:10px;}
 #tLogo .d{font-size:13px;line-height:1.9;color:var(--ink);margin-top:18px;max-width:460px;}
 #tLogo .d b{color:var(--cyan);}
-#tBtns{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap;}
+#tBtns{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap;}
+.tPick{display:flex;align-items:center;gap:10px;margin-top:10px;}
+.tPick span{font-size:10px;letter-spacing:.3em;color:var(--dim);font-weight:800;min-width:48px;}
+.tPick div{display:flex;gap:6px;}
+.tPick .pb{flex:0 0 auto;min-height:34px;padding:6px 14px;font-size:12px;}
+#tBest{font-size:12px;color:var(--gold);letter-spacing:.08em;margin-top:6px;font-variant-numeric:tabular-nums;min-height:16px;}
+#title::before,#title::after{content:"";position:absolute;left:0;right:0;height:7vh;background:linear-gradient(#05070c,rgba(5,7,12,0));pointer-events:none;}
+#title::before{top:0;} #title::after{bottom:0;transform:scaleY(-1);}
+#tStart{animation:tPulse 2.2s ease-in-out infinite;}
+@keyframes tPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,61,127,.0);}50%{box-shadow:0 0 26px 2px rgba(255,61,127,.45);}}
 #tSeed{font-size:11px;letter-spacing:.14em;color:var(--dim);margin-top:14px;font-variant-numeric:tabular-nums;}
 #tKeys{background:rgba(8,12,18,.78);border:1px solid var(--edge);border-radius:18px;padding:18px 20px;}
 #tKeys h4{margin:0 0 10px;font-size:11px;letter-spacing:.34em;color:var(--dim);font-weight:800;}
@@ -150,6 +159,8 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
 .co{position:absolute;left:0;top:0;transform:translate(-50%,-100%);white-space:nowrap;font-size:12px;font-weight:900;letter-spacing:.08em;color:#fff;
   text-shadow:0 1px 0 #000,0 0 10px rgba(255,61,127,.8);pointer-events:none;}
 .co i{display:inline-block;font-style:normal;color:var(--mag);transform-origin:50% 50%;margin-left:4px;}
+#zoomLbl{position:absolute;left:50%;top:calc(50% + 74px);transform:translateX(-50%);font-size:11px;letter-spacing:.2em;color:var(--cyan);font-weight:900;opacity:0;pointer-events:none;text-shadow:0 1px 0 #000;}
+#zoomLbl.on{opacity:.9;}
 #xhCd{position:absolute;left:50%;top:calc(50% - 34px);width:60px;height:2px;margin-left:-30px;background:var(--amber);transform-origin:0 50%;transform:scaleX(0);opacity:0;}
 #cutline{position:absolute;left:0;top:0;height:2px;width:0;background:var(--cyan);transform-origin:0 50%;opacity:0;pointer-events:none;z-index:12;
   box-shadow:0 0 10px var(--cyan),0 0 28px rgba(79,227,240,.55);}
@@ -249,7 +260,15 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
 #rTitle{font-size:54px;font-weight:900;letter-spacing:.16em;line-height:1.05;margin-top:4px;color:#fff;
   text-shadow:0 0 40px var(--mag),0 0 90px rgba(255,61,127,.55),0 4px 0 rgba(0,0,0,.8);opacity:0;}
 #rMap{font-size:13px;letter-spacing:.26em;color:var(--cyan);font-weight:800;margin-top:6px;opacity:0;text-shadow:0 0 14px rgba(79,227,240,.6);}
-#rRows{margin:18px auto 0;width:100%;}
+#rViz{display:flex;gap:16px;align-items:center;margin-top:14px;opacity:0;}
+#rMapCv{width:150px;height:150px;border-radius:10px;border:1px solid var(--edge);flex:0 0 auto;position:relative;inset:auto;display:block;}
+#rStackWrap{flex:1;text-align:left;}
+#rStackLbl{font-size:10px;letter-spacing:.3em;color:var(--dim);font-weight:800;margin-bottom:6px;}
+#rStack{display:flex;height:14px;border-radius:7px;overflow:hidden;background:rgba(255,255,255,.08);}
+#rStack i{display:block;height:100%;}
+#rStackKey{margin-top:6px;font-size:10.5px;color:var(--dim);line-height:1.7;}
+#rStackKey b{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 4px 0 8px;vertical-align:-1px;}
+#rRows{margin:14px auto 0;width:100%;}
 .rRow{display:flex;align-items:baseline;justify-content:space-between;padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.09);opacity:0;}
 .rRow .k{font-size:12px;letter-spacing:.18em;color:var(--dim);font-weight:800;}
 .rRow .v{font-size:26px;font-weight:900;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:#fff;text-shadow:0 0 16px rgba(255,181,61,.5);}
@@ -300,12 +319,15 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
     <div class="d">歌舞伎町・渋谷スクランブル・西新宿。13種の兵装で街を解体する。<br>
       <b>マウスがなくても遊べます</b>：矢印キーで視点、WASDで移動、Spaceで発射。<br>
       マウスを使う場合はクリックで視点をロック（Escで解除）。ゲームパッド（Standard配列）にも対応。</div>
+    <div class="tPick"><span>マップ</span><div id="tMaps"></div></div>
+    <div class="tPick"><span>モード</span><div id="tModes"></div></div>
     <div id="tBtns">
       <button class="pb hi" id="tStart">▶ START　<kbd>Enter</kbd></button>
       <button class="pb" id="tKeysBtn">操作方法　<kbd>/</kbd></button>
       <button class="pb" id="tMenuBtn">設定・マップ・モード　<kbd>Esc</kbd></button>
     </div>
     <div id="tSeed">SEED —</div>
+    <div id="tBest">—</div>
   </div>
   <div id="tKeys">
     <h4>KEYBOARD</h4>
@@ -315,7 +337,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
       <div class="k"><kbd>Space</kbd></div><div class="v">発射（長押しで連射・照射。カッターは押したまま矢印で線を引く）</div>
       <div class="k"><kbd>Z</kbd><kbd>C</kbd></div><div class="v">前／次の武器　<kbd>1</kbd>〜<kbd>0</kbd> 直接選択　<kbd>Tab</kbd> 一覧</div>
       <div class="k"><kbd>X</kbd></div><div class="v">装薬を起爆</div>
-      <div class="k"><kbd>V</kbd></div><div class="v">ズーム切替（マウス右ボタン／LT は押している間）</div>
+      <div class="k"><kbd>V</kbd></div><div class="v">ズーム ×2.6 → ×5.8 → 解除（マウス右ボタン／LT は押している間 ×2.6）</div>
       <div class="k"><kbd>R</kbd><kbd>T</kbd><kbd>M</kbd></div><div class="v">視点を水平に戻す／俯瞰ポイントへ移動／大きな地図</div>
       <div class="k"><kbd>H</kbd><kbd>O</kbd></div><div class="v">HUD表示切替／性能表示（F2 でも）</div>
       <div class="k"><kbd>Esc</kbd></div><div class="v">メニュー（設定・マップ・モード）。メニューも矢印キーと Enter で操作</div>
@@ -361,6 +383,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
   <div id="xhHit"></div>
   <div id="xhInfo"><div id="xhDist">—</div><div id="xhTgt"></div><div id="xhBar"><i></i></div></div>
   <div id="xhRing"></div>
+  <div id="zoomLbl"></div>
   <div id="feed"></div>
   <div id="callouts"></div>
   <button id="det">起爆 <kbd>X</kbd><span id="detN">0</span></button>
@@ -417,7 +440,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
       <div class="k"><kbd>1</kbd>〜<kbd>0</kbd> <kbd>-</kbd> <kbd>^</kbd> <kbd>¥</kbd></div><div class="v">武器を直接選択（13種）</div>
       <div class="k"><kbd>Tab</kbd></div><div class="v">武器一覧（矢印で選び Enter）</div>
       <div class="k"><kbd>X</kbd></div><div class="v">置いた装薬を起爆</div>
-      <div class="k"><kbd>V</kbd></div><div class="v">ズーム切替</div>
+      <div class="k"><kbd>V</kbd></div><div class="v">ズーム ×2.6 → ×5.8 → 解除</div>
       <div class="k"><kbd>R</kbd> / <kbd>T</kbd></div><div class="v">視点を水平に ／ 俯瞰ポイントを順に移動</div>
       <div class="k"><kbd>M</kbd></div><div class="v">大きな地図（ランドマーク名・損傷・火災）</div>
       <div class="k"><kbd>F</kbd></div><div class="v">全画面の切替</div>
@@ -454,6 +477,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
   <div id="rTop">DEMOLITION COMPLETE</div>
   <div id="rTitle">消 滅</div>
   <div id="rMap">歌舞伎町</div>
+  <div id="rViz"><canvas id="rMapCv" width="520" height="520"></canvas><div id="rStackWrap"><div id="rStackLbl">何で壊したか</div><div id="rStack"></div><div id="rStackKey"></div></div></div>
   <div id="rRows">
     <div class="rRow" id="rr0"><span class="k">解体量</span><span class="v" id="rv0">0</span></div>
     <div class="rRow" id="rr1"><span class="k">倒壊棟数</span><span class="v" id="rv1">0</span></div>
@@ -7120,6 +7144,7 @@ const Snd=(()=>{
       else this.concrete(x,y,z);
     },
     rail(){ T(160,3000,.14,.24,'square'); N(.34,.2,'bandpass',900,3200,2.4); },
+    ui(k){ if(k==='move'){ T(1400,1100,.045,.035,'sine'); } else if(k==='ok'){ T(880,1320,.08,.06,'triangle'); } else if(k==='back'){ T(640,420,.08,.05,'triangle'); } else if(k==='sel'){ T(1000,1500,.06,.045,'sine'); } },
     gun(){ if(!gate('gun',40)) return; N(.06,.24,'bandpass',1500,380,1.1); T(170,55,.07,.18,'square'); },
     whistle(){ if(!gate('whistle',400)) return; T(2200,500,1.4,.07,'sine'); },
     incend(x,y,z){ const pos=P(x,y,z); N(.7,.32,'lowpass',1200,110,1,pos); T(120,40,.5,.3,'sine',pos);
@@ -8357,6 +8382,7 @@ function showResult(){
   const el=document.getElementById('result');
   if(!el) return;
   el.classList.add('on');
+  if(typeof onResultShow==='function'){ try{ onResultShow(); }catch(e){} }
   const ton=killedVox*TON_PER_VOX;
   let dn=0, tot=0;
   for(let k=0;k<blds.length;k++){
@@ -9541,6 +9567,7 @@ function selW(id,fromUser){
   if(!WPN.find(w=>w.id===id)) return;
   if(CUT.on) cancelCut();
   wpn=id; cd=Math.min(cd,.2);
+  if(fromUser) Snd.ui('sel');
   const W=curW();
   el.xh.classList.toggle('cutw',!!W.swipe);
   renderWBar();
@@ -9585,7 +9612,8 @@ function renderQualUI(){ if(pmenu.classList.contains('on')) renderMenu(); }
 const keys={};
 const CUT={on:false,x:0,y:0};
 const PTR=new Map();
-let fireHeld=false, fireSrc=null, zoomHeld=false, zoomToggle=false;
+let fireHeld=false, fireSrc=null, zoomHeld=false, zoomToggle=false, zoomStage=0;
+const ZOOM_STAGES=[0,1,1.43];   // fovBase の係数：0=等倍、1=×2.3、1.43=×5
 let titleOn=false, keysOn=false, titleShown=false;
 const KEYLOOK_PX=1050, CUT_PX=720, PADLOOK_PX=1400;
 const pmenu=document.getElementById('pmenu'), titleEl=document.getElementById('title'), keysEl=document.getElementById('keys'), resultEl=document.getElementById('result');
@@ -9602,7 +9630,7 @@ function topOverlay(){
   return null;
 }
 function closeTop(){
-  const ov=topOverlay();
+  const ov=topOverlay(); if(ov) Snd.ui('back');
   if(ov===titleEl){ openMenu('menu'); return; }        // タイトルでは Esc＝設定・マップ・モード
   if(ov===keysEl) closeKeys();
   else if(ov===bigmapEl) closeMap();
@@ -9655,7 +9683,7 @@ function execCut(c){
 }
 function releasePointers(){
   fireUp(true);
-  PTR.clear(); zoomHeld=false;
+  PTR.clear(); zoomHeld=false; zoomToggle=false; zoomStage=0;
   for(const k in keys) keys[k]=0;
   inp.fwd=0; inp.side=0; inp.up=0; inp.boost=0;
   keyLook.x=0; keyLook.y=0;
@@ -9697,7 +9725,7 @@ window.addEventListener('keydown',e=>{
     case 'KeyZ': cycleW(-1); break;
     case 'KeyC': cycleW(1); break;
     case 'KeyX': blowCharges(); break;
-    case 'KeyV': zoomToggle=!zoomToggle; break;
+    case 'KeyV': zoomStage=(zoomStage+1)%ZOOM_STAGES.length; zoomToggle=zoomStage>0; break;
     case 'KeyR': cam.pitch=0; break;
     case 'KeyT': cycleView(); break;
     case 'KeyH': toggleHud(); break;
@@ -9728,9 +9756,10 @@ function readKeys(){
   keyLook.x = kx ? keyLook.x+(kx-keyLook.x)*Math.min(1,dt*4.5) : 0;    // 離した瞬間に止まる（狙いが流れない）
   keyLook.y = ky ? keyLook.y+(ky-keyLook.y)*Math.min(1,dt*4.5) : 0;
   if(Math.abs(keyLook.x)>.003||Math.abs(keyLook.y)>.003){ const px=(CUT.on?CUT_PX:KEYLOOK_PX)*dt; lookPx(keyLook.x*px, keyLook.y*px); }
-  const zt=(zoomHeld||zoomToggle||PAD.zoom)?1:0;
+  const zt=Math.max((zoomHeld||PAD.zoom)?1:0, zoomToggle?ZOOM_STAGES[zoomStage]:0);
   zoomK+=(zt-zoomK)*Math.min(1,dt*11); if(Math.abs(zoomK-zt)<.003) zoomK=zt;
   el.xh.classList.toggle('zoom',zoomK>.5);
+  const zl=document.getElementById('zoomLbl'); if(zl){ if(zoomK>.5){ const mag=Math.tan(fovUser*Math.PI/360)/Math.tan(fovBase()*Math.PI/360); zl.textContent='×'+mag.toFixed(1)+' ZOOM'; zl.classList.add('on'); } else zl.classList.remove('on'); }
 }
 /* ── マウス（任意）：ポインタロックで視点。ロックが使えなければドラッグで視点 ── */
 let locked=false, mouseUsed=false, lockFails=0, lockFailed=false;
@@ -9817,7 +9846,7 @@ function pollPad(dt){
   if(edge(8)) toggleHud();
   if(edge(12)) cam.pitch=0;
   if(edge(13)) cycleView();
-  if(edge(11)) zoomToggle=!zoomToggle;
+  if(edge(11)){ zoomStage=(zoomStage+1)%ZOOM_STAGES.length; zoomToggle=zoomStage>0; }
   PAD.prev=now;
 }
 window.addEventListener('gamepadconnected',e=>{ PAD.on=true; PAD.idx=e.gamepad.index; wToast('🎮 ゲームパッドを認識：'+String(e.gamepad.id||'').slice(0,42)); updKeyHint(); });
@@ -9842,25 +9871,34 @@ function knavMove(dx,dy){
     const q=it[k].getBoundingClientRect(); const ddx=q.left+q.width/2-cx, ddy=q.top+q.height/2-cy;
     const along=ddx*dx+ddy*dy; if(along<=4) continue;
     const perp=Math.abs(ddx*dy-ddy*dx);
-    const sc=along*along+perp*perp*6; if(sc<bd){ bd=sc; best=k; } }
+    const sc=along*along+perp*perp*25; if(sc<bd){ bd=sc; best=k; } }   // 押した方向に並んでいるものを優先（横にずれた近いものより、遠くても同じ行/列）
   if(best<0){ // 端まで来たら反対側へ回り込む
     for(let k=0;k<it.length;k++){ if(it[k]===cur) continue;
       const q=it[k].getBoundingClientRect(); const ddx=q.left+q.width/2-cx, ddy=q.top+q.height/2-cy;
       const along=-(ddx*dx+ddy*dy); if(along<=4) continue;
       const perp=Math.abs(ddx*dy-ddy*dx);
-      const sc=-along*along+perp*perp*6; if(sc<bd){ bd=sc; best=k; } }
+      const sc=-along*along+perp*perp*25; if(sc<bd){ bd=sc; best=k; } }
   }
-  if(best>=0){ knavSet(best); Snd.kick(); }
+  if(best>=0){ knavSet(best); Snd.ui('move'); }
 }
 function knavOpen(root,preferId){ KNAV.root=root; const it=knavItems(); let i=0; if(preferId){ const k=it.findIndex(b=>b.id===preferId); if(k>=0) i=k; } knavSet(i); }
 function knavClose(){ if(KNAV.root) knavItems().forEach(b=>b.classList.remove('kf')); KNAV.root=null; }
-function knavActivate(){ const it=knavItems(); const b=it[KNAV.idx]; if(b) b.click(); }
+function knavActivate(){ const it=knavItems(); const b=it[KNAV.idx]; if(b){ Snd.ui('ok'); b.click(); } }
 for(const root of [pmenu,wpanel,titleEl,keysEl,resultEl]) root.addEventListener('pointerover',e=>{ const b=e.target.closest&&e.target.closest('button'); if(!b||KNAV.root!==root) return; const k=knavItems().indexOf(b); if(k>=0) knavSet(k); });
 /* ══════════ タイトル ══════════ */
 function onBootDone(){ if(!titleShown){ titleShown=true; showTitle(); } }
 let titleT=0, titleYaw0=0, titleY0=0;
+function renderTitlePick(){
+  const tm=document.getElementById('tMaps'); if(!tm) return; tm.innerHTML='';
+  MAPNAMES.forEach((n,i)=>{ tm.appendChild(mkPB(n,i===MAPID,()=>{ if(i===MAPID) return; genCity(i); spawnOverview(); showTitle(); knavOpen(titleEl,'tP_'+i); },'tP_'+i)); });
+  const td=document.getElementById('tModes'); td.innerHTML='';
+  MODES.forEach(M=>{ td.appendChild(mkPB(M.n,M.id===MODE,()=>{ setMode(M.id); renderTitlePick(); knavOpen(titleEl,'tM_'+M.id); },'tM_'+M.id)); });
+  const best=loadBest(); const tb=document.getElementById('tBest');
+  if(tb) tb.innerHTML=best?('この街・このモードのベスト　<b>'+fmtScore(best.score)+'</b>　ランク '+best.rank+'　'+Math.round(best.ton)+'t'):('ベスト記録はまだありません　—　'+modeDef().d);
+}
 function showTitle(){
   titleOn=true; titleEl.classList.add('on'); el.hud.classList.add('title');
+  renderTitlePick();
   titleT=0; titleYaw0=cam.yaw; titleY0=cam.pos.y;
   document.getElementById('tSeed').textContent='SEED '+citySeed+'　·　'+MAPNAMES[MAPID]+'　·　'+modeDef().lbl;
   knavOpen(titleEl,'tStart'); updKeyHint();
@@ -10080,6 +10118,18 @@ function updTut(dt){
   if(menuOpen()||panelOpen()) tutMark('menu');
   t.style.opacity = (titleOn||keysOn||mapOn||resultOn) ? '0' : '1';
 }
+/* 結果画面：街の最終状態の地図と、壊した要因の内訳バー */
+const SRC_COL={wpn:'#4fe3f0',collapse:'#ffd166',chain:'#ff8a2b',domino:'#ff3d7f',fire:'#ff7a30',nuke:'#8f869d'};
+function onResultShow(){
+  const cv=document.getElementById('rMapCv'); if(cv){ const g=cv.getContext('2d'); if(g) drawMapTo(cv,g,false); }
+  let tt=0; for(const k in TALLY) tt+=TALLY[k];
+  const st=document.getElementById('rStack'), key=document.getElementById('rStackKey');
+  if(st){ st.innerHTML=''; key.innerHTML='';
+    for(const k of ['domino','chain','collapse','fire','wpn','nuke']){ if(!TALLY[k]) continue; const pc=TALLY[k]/Math.max(1,tt)*100;
+      const i=document.createElement('i'); i.style.width=pc+'%'; i.style.background=SRC_COL[k]; i.title=SRCNAME[k]+' '+Math.round(pc)+'%'; st.appendChild(i);
+      key.innerHTML+='<b style="background:'+SRC_COL[k]+'"></b>'+SRCNAME[k]+' ×'+SRCMUL[k]+' '+Math.round(pc)+'%'; } }
+  const v=document.getElementById('rViz'); if(v){ v.style.opacity='0'; setTimeout(()=>{ v.style.opacity='1'; v.animate([{transform:'translateY(12px)',opacity:0},{transform:'none',opacity:1}],{duration:420,easing:'cubic-bezier(.16,.9,.3,1)'}); },480); }
+}
 /* 初回だけ短い操作ヒント */
 let hintT=null;
 function showHint(force){
@@ -10112,7 +10162,7 @@ const PCDBG={
   start:startGame, showTitle:showTitle, titleOn:()=>titleOn,
   key:(code,down)=>{ window.dispatchEvent(new KeyboardEvent(down?'keydown':'keyup',{code:code,key:code,bubbles:true,cancelable:true})); },
   look:lookPx, keys:()=>keys, cut:()=>CUT, zoomK:()=>zoomK, fov:()=>camera.fov, PCS:PCS, cycleW:cycleW,
-  menuOpen:menuOpen, panelOpen:panelOpen, keysOn:()=>keysOn, mapOn:()=>mapOn, feedPush:feedPush, feedCount:()=>feedEl.children.length, fpsCap:()=>fpsCap, tut:()=>TUT, tutStart:tutStart, openMap:openMap, closeMap:closeMap, drawCompass:drawCompass, knav:()=>({root:KNAV.root?KNAV.root.id:null, idx:KNAV.idx, id:KNAV.lastId}),
+  menuOpen:menuOpen, panelOpen:panelOpen, keysOn:()=>keysOn, mapOn:()=>mapOn, renderTitlePick:renderTitlePick, onResultShow:onResultShow, feedPush:feedPush, feedCount:()=>feedEl.children.length, fpsCap:()=>fpsCap, tut:()=>TUT, tutStart:tutStart, openMap:openMap, closeMap:closeMap, drawCompass:drawCompass, knav:()=>({root:KNAV.root?KNAV.root.id:null, idx:KNAV.idx, id:KNAV.lastId}),
   pad:()=>PAD, locked:()=>locked, fireDown:fireDown, fireUp:fireUp, fireSrc:()=>fireSrc,
   wbar:()=>Array.from(wbar.querySelectorAll('.q')).map(b=>b.dataset.w+(b.classList.contains('sel')?'*':'')),
   minimap:()=>mmCv, readKeys:readKeys, openMenu:openMenu, closeMenu:closeMenu, openPanel:openPanel, closePanel:closePanel, openKeys:openKeys,
