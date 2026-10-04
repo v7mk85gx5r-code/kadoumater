@@ -300,6 +300,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
   #tBox{grid-template-columns:1fr;gap:18px;} #tKeys{display:none;}
 }
 @media (max-height:640px){ #mmWrap{display:none;} #keyhint{bottom:92px;} }
+/*@CSS*/
 </style>
 </head>
 <body>
@@ -397,6 +398,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
   <div id="tut"><div class="h">はじめの操作</div><ol id="tutList"></ol><div class="f">全部できたら消えます　<kbd>/</kbd> 操作一覧</div></div>
 </div>
 <div id="bigmap" class="ov"><div class="sheet" style="width:auto;text-align:center"><h3>MAP <span class="hk">M / Esc で閉じる</span><button id="bmClose" aria-label="閉じる">✕</button></h3><canvas id="bigmapCv" width="1400" height="1400"></canvas><div id="bmLegend"><i style="background:rgba(79,227,240,.6)"></i>健在　<i style="background:rgba(255,209,102,.95)"></i>ランドマーク　<i style="background:rgba(255,181,61,.85)"></i>損傷　<i style="background:rgba(255,61,127,.5)"></i>倒壊　<i style="background:rgba(255,120,30,.95);border-radius:50%"></i>火災</div></div></div>
+<!--@BODY-->
 <div id="cutline"></div>
 <div id="perf"></div>
 
@@ -420,6 +422,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
   <div class="row"><span class="lb">視点の速さ</span><button class="pb sm" id="pmSensM">−</button><span id="pmSensV">5</span><button class="pb sm" id="pmSensP">＋</button>
     <button class="pb" id="bInvY">Y軸反転</button><button class="pb" id="bSnd">音</button></div>
   <div class="row"><span class="lb">環境音</span><div class="row" id="pmAmbRow" style="margin:0;flex:1"></div></div>
+  <!--@MENU_ROWS-->
   <div class="row lbl">モード</div>
   <div class="row" id="pmModes"></div>
   <div class="row lbl">マップ</div>
@@ -468,6 +471,7 @@ kbd{display:inline-block;min-width:22px;padding:2px 7px;border-radius:6px;border
       <div class="k">Start / Back</div><div class="v">メニュー ／ HUD切替</div>
     </div>
   </div>
+  <!--@KEYS_LEGEND-->
   <div class="row" style="justify-content:center;margin-top:16px"><button class="pb" id="kClose2" style="flex:0 0 auto;min-width:160px">閉じる</button></div>
 </div></div>
 
@@ -603,7 +607,9 @@ boot(.12,'素材を生成中…');
 
 /* ══════════ 定数 ══════════ */
 const VOX=1.4;                    // 1ボクセルの一辺（ワールド単位）
-const MAXCHUNK=160;                // 同時に物理演算する塊の上限
+const MAXCHUNK=160;
+const HOOKS={init:[],build:[],reset:[],update:[],blast:[],lights:[],hud:[]};   // 機能モジュールの差し込み口（work/pc/feat/19_hooks.py）
+function runHooks(list,a,b,c,d){ for(let i=0;i<list.length;i++){ try{ list[i](a,b,c,d); }catch(e){ if(!list[i]._err){ list[i]._err=1; console.error('hook',e); } } } }                // 同時に物理演算する塊の上限
 const MAXMESH=170;                // 塊メッシュの総数上限
 const GRAV=42, MAXW=8.5;
 /* 毎フレームの確率や減衰を「60fps基準」で書いてあった箇所を、実際の刻み幅に比例させるための係数 */
@@ -1155,7 +1161,7 @@ function setupLitMaterial(mat){
       .replace('vec3 outgoingLight = reflectedLight.indirectDiffuse;',
                'vec3 outgoingLight = reflectedLight.indirectDiffuse;\n'+LIT_MAIN);
   };
-  mat.customProgramCacheKey=()=>'tt_lit_23';
+  mat.customProgramCacheKey=()=>'tt_lit_'+LIT_PRE.length+'_'+LIT_MAIN.length+'_'+LIT_COLOR.length;   // シェーダ文字列が変われば鍵も変わる
   mat.needsUpdate=true;
 }
 /* 看板の字形：端末の日本語フォントで描いて画像にする。
@@ -1262,7 +1268,7 @@ function buildLightMap(){
       }
     }
   }
-  for(let i=0;i<lampPos.length;i+=3) add(lampPos[i],Math.min(lampPos[i+1],9),lampPos[i+2],1.0,.86,.62,5.0);
+  for(let i=0;i<lampPos.length;i+=3){ if(lampPos[i+1]>20) add(lampPos[i],9,lampPos[i+2],1.0,.86,.62,5.0); else { const c=slpLampCol(); add(lampPos[i],9,lampPos[i+2],c[0],c[1],c[2],3.2); } }
   const tmp=new Float32Array(N*N), rr=3;
   const blur=(A)=>{
     for(let z=0;z<N;z++) for(let x=0;x<N;x++){ let v=0; for(let k=-rr;k<=rr;k++){ const xx=x+k; if(xx>=0&&xx<N) v+=A[xx+z*N]; } tmp[x+z*N]=v/(2*rr+1); }
@@ -1500,6 +1506,9 @@ function updLights(dt){
     const L=cand[i];
     L.s=L.i*L.r/(Math.hypot(L.x-cx,L.y-cy,L.z-cz)+L.r*0.5+1);
   }
+  runHooks(HOOKS.lights,cand,dt);
+  updLampLights(dt);
+  for(let i=0;i<SLPL.ls.length;i++){ const L=SLPL.ls[i]; L.s=0.6*L.i*L.r/(Math.hypot(L.x-cx,L.y-cy,L.z-cz)+L.r*0.5+1); cand.push(L); }
   cand.sort((a,b)=>b.s-a.s);
   const P=LITU.uLP.value, C=LITU.uLC.value;
   for(let i=0;i<NLIT;i++){
@@ -1780,6 +1789,132 @@ function updLanterns(dt){
 /* ══════════ 信号機 ══════════
    幹線道路どうしの交差点に信号を立てる。車は赤と黄で交差点の手前に止まり、列を作る。
    渋谷のスクランブル交差点は、人が渡る間は全方向が赤になる */
+/* ══════════ 幹線道路の街灯 ══════════
+   幅 20m 以上の通りの両側に、アーム式街灯（柱 10m・片持ちアーム 2.3m・灯具）を 30m ピッチの千鳥で立てる。
+   灯具の位置を lampPos に登録するので、光点・路面の光溜まり・光の地図・消灯の仕組みはそのまま効く。
+   歌舞伎町／渋谷は電球色、西新宿は昼白色（LED）。爆風で柱が倒れる */
+const SLP={pole:null, arm:null, head:null, list:[], t:0, MAX:720};
+const SLP_PITCH=30, SLP_H=10, SLP_ARM=2.3;
+function slpWhite(){ return MAPID===2; }                                  // 西新宿は昼白色
+function slpLampCol(){ return slpWhite()?[.80,.88,1.0]:[1.0,.86,.62]; }   // 光点・光の地図の色
+function slpLightCol(){ return slpWhite()?[.85,.90,1.0]:[1.0,.78,.50]; }  // 点光源の色
+function initStreetLamps(){
+  const box=(w,h,d,x,y)=>{ const g=new THREE.BoxGeometry(w,h,d).toNonIndexed(); g.translate(x,y,0);
+    g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(g.attributes.position.count*3).fill(1),3)); return g; };
+  const mat=new THREE.MeshBasicMaterial({vertexColors:true,fog:true}); setupLitMaterial(mat);
+  const mk=(geo)=>{ const m=new THREE.InstancedMesh(geo,mat,SLP.MAX); m.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(SLP.MAX*3),3);
+    m.instanceMatrix.setUsage(THREE.DynamicDrawUsage); m.count=0; m.frustumCulled=false; scene.add(m); return m; };
+  SLP.pole=mk(box(.28,SLP_H,.28,0,SLP_H/2));                           // 柱（根元が原点）
+  SLP.arm=mk(box(SLP_ARM+.3,.16,.16,(SLP_ARM+.3)/2-.15,SLP_H-.1));      // アーム：柱から +x へ
+  SLP.head=mk(box(.95,.22,.38,SLP_ARM,SLP_H-.05));                      // 灯具：アームの先
+}
+const _slpM=new THREE.Matrix4(), _slpR=new THREE.Matrix4(), _slpAx=new THREE.Vector3();
+function slpPose(k,q,fallX,fallZ){                                        // k 番目の行列を書く。fall があれば根元で倒す
+  _slpM.makeRotationY(Math.atan2(-q.dz,q.dx));
+  if(fallX!==undefined){ _slpAx.set(fallZ,0,-fallX).normalize(); _slpR.makeRotationAxis(_slpAx,1.40); _slpR.multiply(_slpM); _slpM.copy(_slpR); }
+  _slpM.setPosition(q.x,0,q.z);
+  SLP.pole.setMatrixAt(k,_slpM); SLP.arm.setMatrixAt(k,_slpM); SLP.head.setMatrixAt(k,_slpM);
+}
+function slpHeadCol(k,on){
+  const C=SLP.head.instanceColor.array;
+  if(!on){ C[k*3]=.12; C[k*3+1]=.12; C[k*3+2]=.13; return; }
+  // 街灯の発光は「控えめな発光」の区分（最小成分 2〜4）。区分 2（ネオン）は壁面の看板として描かれるので使わない
+  if(slpWhite()){ C[k*3]=3.60; C[k*3+1]=3.80; C[k*3+2]=3.95; } else { C[k*3]=3.90; C[k*3+1]=3.68; C[k*3+2]=3.30; }
+}
+function buildStreetLamps(){
+  SLP.list.length=0; SLP.t=0;
+  if(!SLP.pole) return;
+  const nPole=lampPos.length/3;                                           // ここまでの lampPos は電柱の街灯（y=26）
+  const nearPole=(x,z)=>{ for(let i=0;i<nPole*3;i+=3){ if(Math.abs(lampPos[i]-x)<10&&Math.abs(lampPos[i+2]-z)<10) return true; } return false; };
+  const free=(x,z)=>!bldAt(x,1,z)&&!bldAt(x,5,z)&&!bldAt(x,9.4,z);
+  const put=(x,z,dx,dz)=>{
+    if(SLP.list.length>=SLP.MAX) return;
+    const hx=x+dx*SLP_ARM, hz=z+dz*SLP_ARM;
+    if(!free(x,z)||!free(hx,hz)||nearPole(x,z)) return;
+    SLP.list.push({x:x,z:z,dx:dx,dz:dz,li:lampPos.length/3,dead:false,off:false});
+    lampPos.push(hx,SLP_H+.2,hz);
+  };
+  // 南北の幹線：両側。片側を半ピッチずらして千鳥に。交差点（相手の通りの幅＋5m）は空ける
+  for(let i=0;i<XL.length;i++){ if(XW[i]<20) continue;
+    for(const sd of [-1,1]){ const x=XL[i]+sd*(XW[i]/2+1.3);
+      for(let z=CITY.z0+12+(sd>0?SLP_PITCH/2:0); z<CITY.z1-12; z+=SLP_PITCH){
+        let ok=true; for(let j=0;j<ZL.length;j++) if(Math.abs(z-ZL[j])<ZW[j]/2+5){ ok=false; break; }
+        if(ok) put(x,z,-sd,0); } } }
+  // 東西の幹線
+  for(let j=0;j<ZL.length;j++){ if(ZW[j]<20) continue;
+    for(const sd of [-1,1]){ const z=ZL[j]+sd*(ZW[j]/2+1.3);
+      for(let x=CITY.x0+12+(sd>0?SLP_PITCH/2:0); x<CITY.x1-12; x+=SLP_PITCH){
+        let ok=true; for(let i=0;i<XL.length;i++) if(Math.abs(x-XL[i])<XW[i]/2+5){ ok=false; break; }
+        if(ok) put(x,z,0,-sd); } } }
+  const CP=SLP.pole.instanceColor.array, CA=SLP.arm.instanceColor.array;
+  for(let k=0;k<SLP.list.length;k++){
+    slpPose(k,SLP.list[k]);
+    CP[k*3]=.20; CP[k*3+1]=.21; CP[k*3+2]=.22; CA[k*3]=.20; CA[k*3+1]=.21; CA[k*3+2]=.22;
+    slpHeadCol(k,true);
+  }
+  for(const m of [SLP.pole,SLP.arm,SLP.head]){ m.count=SLP.list.length; m.instanceMatrix.needsUpdate=true; m.instanceColor.needsUpdate=true; }
+}
+/* 消灯との同期：killLampsNear / empBlackout / 警報は光点（lampObj）の色を 0 にするだけなので、0.25 秒おきに灯具の発光を落とす */
+function updStreetLamps(dt){
+  if(!SLP.head||!SLP.list.length) return;
+  SLP.t+=dt; if(SLP.t<.25) return; SLP.t=0;
+  if(!lampObj) return;
+  const col=lampObj.geometry.attributes.color||lampObj.geometry.attributes.acolor; if(!col) return;
+  const A=col.array; let ch=false;
+  for(let k=0;k<SLP.list.length;k++){ const q=SLP.list[k]; if(q.off) continue; const i=q.li*3;
+    if(i+2<A.length && A[i]===0&&A[i+1]===0&&A[i+2]===0){ q.off=true; slpHeadCol(k,false); ch=true; } }
+  if(ch) SLP.head.instanceColor.needsUpdate=true;
+}
+/* 爆風：半径内の柱を根元から倒す。灯は消え、鉄骨の破片と火花が飛ぶ */
+function streetLampsBlast(x,z,r){
+  if(!SLP.head||!SLP.list.length) return;
+  const col=lampObj&&(lampObj.geometry.attributes.color||lampObj.geometry.attributes.acolor);
+  let n=0, hit=false;
+  for(let k=0;k<SLP.list.length;k++){ const q=SLP.list[k]; if(q.dead) continue;
+    const dx=q.x-x, dz=q.z-z, d=Math.hypot(dx,dz); if(d>r*.95) continue;
+    q.dead=true; q.off=true;
+    const fx=d>1?dx/d:q.dx, fz=d>1?dz/d:q.dz;
+    slpPose(k,q,fx,fz); slpHeadCol(k,false); hit=true;
+    if(col){ const i=q.li*3; col.array[i]=col.array[i+1]=col.array[i+2]=0; }
+    if(n<14){ n++;                                                      // 破片は近い柱だけ（1 回の爆発で最大 14 本分）
+      const hx=q.x+q.dx*SLP_ARM, hz=q.z+q.dz*SLP_ARM;
+      spawnDebris(hx,SLP_H,hz,MATS[5],1.2); spawnDebris(q.x,SLP_H*.5,q.z,MATS[5],1.0);
+      for(let s=0;s<5;s++) spark(hx,SLP_H,hz,rf(-9,9),rf(2,10),rf(-9,9),rf(.2,.5),1,.75,.4); }
+  }
+  if(hit){ for(const m of [SLP.pole,SLP.arm,SLP.head]){ m.instanceMatrix.needsUpdate=true; m.instanceColor.needsUpdate=true; }
+    if(col) col.needsUpdate=true; }
+}
+/* カメラ近傍の街灯を本物の点光源にする：0.25 秒ごとに 150m 以内の近い順 8 灯を選び、出入りはフェードさせる */
+const SLPL={t:0, ls:[], pick:[]};
+function pickLampLights(){
+  const P=SLPL.pick; P.length=0;
+  if(!lampObj||!lampPos.length||blackout) return;
+  const col=lampObj.geometry.attributes.color||lampObj.geometry.attributes.acolor; const A=col?col.array:null;
+  const cx=camera.position.x, cy=camera.position.y, cz=camera.position.z;
+  for(let i=0;i<lampPos.length;i+=3){
+    if(A&&A[i]===0&&A[i+1]===0&&A[i+2]===0) continue;                 // 消えた灯
+    const d=Math.hypot(lampPos[i]-cx,lampPos[i+1]-cy,lampPos[i+2]-cz); if(d>150) continue;
+    // 近い順 8 件を保つ（挿入ソート）
+    let k=P.length; if(k>=8){ if(d>=P[7].d) continue; k=7; } else P.push(null);
+    while(k>0&&P[k-1].d>d){ P[k]=P[k-1]; k--; }
+    P[k]={i:i,d:d};
+  }
+}
+function updLampLights(dt){
+  SLPL.t-=dt;
+  if(SLPL.t<=0){ SLPL.t=.25; pickLampLights();
+    for(const L of SLPL.ls) L.keep=false;
+    for(const p of SLPL.pick){ let L=null; for(const q of SLPL.ls) if(q.li===p.i){ L=q; break; }
+      if(!L){ const pole=lampPos[p.i+1]>20;
+        L={li:p.i, x:lampPos[p.i], y:lampPos[p.i+1]-.6, z:lampPos[p.i+2], r:pole?44:36, c:pole?[1,.78,.5]:slpLightCol(), i:0, tau:1, s:0, k:0, keep:true};
+        SLPL.ls.push(L); }
+      L.keep=true; } }
+  for(let n=SLPL.ls.length-1;n>=0;n--){ const L=SLPL.ls[n];
+    L.k+=(L.keep?1:-1)*dt/.35; if(L.k>1) L.k=1;
+    if(L.k<=0){ SLPL.ls.splice(n,1); continue; }
+    L.i=0.75*cityPower*L.k; }
+  if(SLPL.ls.length>12) SLPL.ls.sort((a,b)=>b.k-a.k).length=12;
+}
 const SIG={list:[], t:0, pole:null, head:null, lamp:null};
 function initSignals(){
   const box=(w,h,d,y)=>{ const g=new THREE.BoxGeometry(w,h,d).toNonIndexed(); g.translate(0,y,0);
@@ -1894,7 +2029,7 @@ function setupWetMaterial(mat){
     sh.fragmentShader=WET_PRE+sh.fragmentShader.replace('vec3 outgoingLight = reflectedLight.indirectDiffuse;',
       'vec3 outgoingLight = reflectedLight.indirectDiffuse;\n'+WET_MAIN);
   };
-  mat.customProgramCacheKey=()=>'tt_wet_2';
+  mat.customProgramCacheKey=()=>'tt_wet_'+WET_PRE.length+'_'+WET_MAIN.length;
   mat.needsUpdate=true;
 }
 function renderReflection(dt){
@@ -2640,6 +2775,7 @@ const MATS={
   43:{n:'樹木',       r:.20,g:.31,b:.16, hp:14,  sc:1, ld:0.0},
   44:{n:'幹',         r:.24,g:.21,b:.18, hp:14,  sc:1, ld:0.0},
   45:{n:'バスケットボール', r:.86,g:.40,b:.10, hp:60, sc:2, ld:0.3},
+  /*@MATS*/
   41:{n:'水面',       r:.12,g:.22,b:.30, hp:10,  sc:1, ld:0.0},
   28:{n:'灯り(青白)', r:.72,g:.88,b:1.0, hp:24,  sc:1, ld:0.0, emis:1},
   29:{n:'燃料タンク', r:.62,g:.58,b:.30, hp:60,  sc:3, ld:0.3, burn:1},
@@ -3816,6 +3952,7 @@ function fillLot(x0,z0,x1,z1){
   }
 }
 let cityGen=0;                     // 街の世代。再生成をまたいだ遅延処理を無効にする
+/*@DEFS*/
 function resetWorld(){
   cityGen++;
   for(const b of blds) disposeBld(b);
@@ -3841,7 +3978,7 @@ function resetWorld(){
   gasLeaks=[]; sndQ=[]; shockFx=null; cityAlert=0; alertT=0; sirenT=0;
   LITQ.length=0; cityPowerT=1; cityPower=1; SKYU.uFlash.value=0;
   DEB.arr.length=0; DEB.rr=0; if(DEB.mesh) DEB.mesh.count=0;
-  SIGNS.length=0; HOT.length=0; CGAI=null; PED.list.length=0; LAN.list.length=0;
+  SIGNS.length=0; HOT.length=0; CGAI=null; PED.list.length=0; LAN.list.length=0; SLP.list.length=0; SLPL.ls.length=0;
   VFX.fa.length=0; VFX.sa.length=0; VFX.pa.length=0; VFX.dist.length=0; hitStopT=0;
   if(shockMesh){ shockMesh.visible=false; shockMat.opacity=0; }
   meshQ=[]; deferMesh=false;
@@ -3854,6 +3991,7 @@ function resetWorld(){
   S.score=0; S.combo=1; S.comboT=0; S.comboHits=0; S.peak=1; S.shots=0; resetTally();
   runOver=false; runStarted=false; runLeft=modeDef().sec||0; runElapsed=0; runStartAt=0; pausedTotal=0; pauseStart=paused?performance.now():0; runEndT=0; settleT=0; runEndTitle=null;
   LMS=[]; lmT=0; bannerLmT=0; fireHeld=false; TOPPLING=[];
+  runHooks(HOOKS.reset);
 
 }
 /* ══════════ 歌舞伎町 ══════════ */
@@ -4855,6 +4993,7 @@ function genCity(mapId,seed){
   cityTop=0;
   for(let k=0;k<blds.length;k++) cityTop=Math.max(cityTop, blds[k].H*VOX);
   buildGrid();
+  buildStreetLamps();
   buildLamps();
   buildHalos();
   buildGlowFloor();
@@ -4865,6 +5004,7 @@ function genCity(mapId,seed){
   buildPeds();
   buildLanterns();
   buildSignals();
+  runHooks(HOOKS.build);
   } finally { Math.random=_rnd; }
   QUAL.settleUntil=performance.now()+4000;          // 生成直後の重さで画質を下げない
   const el=document.getElementById('mapName');
@@ -4883,7 +5023,7 @@ function buildGlowFloor(){
     for(let k=0;k<4;k++) C.push(cr,cg,cb);
     I.push(b,b+1,b+2, b,b+2,b+3);
   };
-  for(let i=0;i<lampPos.length;i+=3) add(lampPos[i],lampPos[i+2],30,.55,.44,.26);
+  for(let i=0;i<lampPos.length;i+=3){ if(lampPos[i+1]>20) add(lampPos[i],lampPos[i+2],30,.55,.44,.26); else if(slpWhite()) add(lampPos[i],lampPos[i+2],18,.34,.40,.46); else add(lampPos[i],lampPos[i+2],18,.50,.40,.24); }
   // ネオンの多いビルの足元を、その基調色で照らす
   for(let k=0;k<blds.length;k++){
     const b=blds[k];
@@ -4920,8 +5060,10 @@ function buildWires(){
   const n=lampPos.length/3;
   for(let i=0;i<n;i++){
     const ax=lampPos[i*3], ay=lampPos[i*3+1], az=lampPos[i*3+2];
+    if(ay<20) continue;                                        // アーム街灯（幹線）は電線を持たない
     for(let j=i+1;j<n;j++){
       const bx=lampPos[j*3], by=lampPos[j*3+1], bz=lampPos[j*3+2];
+      if(by<20) continue;
       const d=Math.hypot(bx-ax,bz-az);
       if(d>150||d<20) continue;
       if(Math.abs(bx-ax)>12 && Math.abs(bz-az)>12) continue;   // 直線的に並ぶ電柱だけ
@@ -5073,7 +5215,7 @@ function buildLamps(){
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.Float32BufferAttribute(lampPos,3));
   const col=[];
-  for(let i=0;i<lampPos.length/3;i++) col.push(1,.86,.62);
+  for(let i=0;i<lampPos.length/3;i++){ if(lampPos[i*3+1]>20) col.push(1,.86,.62); else { const c=slpLampCol(); col.push(c[0]*.78,c[1]*.78,c[2]*.78); } }
   g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
   if(!lampMat) lampMat=new THREE.PointsMaterial({
     size:15, map:radialTex('255,220,160',false), vertexColors:true,
@@ -7355,7 +7497,7 @@ function detonate(x,y,z,rad,pow,shk){
   const R=rad;
   addHot(x,y,z,Math.min(60,R*.8),1.3,2.4);                               // 着弾点が赤熱し、数秒かけて冷える
   trafficBlast(x,y,z,R*1.1);                                              // 巻き込まれた車は吹き飛ぶ
-  pedsBlast(x,z,R*1.0); lanternsBlast(x,z,R);
+  pedsBlast(x,z,R*1.0); lanternsBlast(x,z,R); streetLampsBlast(x,z,R); runHooks(HOOKS.blast,x,y,z,R);
   vfxFire(x,y,z,R*.55,.22,1.55,0,0,0);                                   // 閃光の芯
   const nfb=Math.min(9,3+Math.round(R/8));
   for(let i=0;i<nfb;i++){                                                // 火球：外へ広がりながら上昇する
@@ -9191,7 +9333,7 @@ function zoneApply(b, zone){
     if(b.pose){ b.pose.t-=dt; if(b.pose.t<=0) b.pose=null; } }
   updSndQ(dt); updShockFront(dt);
   updCityReaction(dt);
-  updFX(dt); updShells(dt); updTracers(dt); updEfx(dt); updFires(dt); updGasLeaks(dt); updBeams(); updDebris(dt); updVFX(dt); updTraffic(dt); updPeds(dt); updLanterns(dt); updSignals(dt);
+  updFX(dt); updShells(dt); updTracers(dt); updEfx(dt); updFires(dt); updGasLeaks(dt); updBeams(); updDebris(dt); updVFX(dt); updTraffic(dt); updPeds(dt); updLanterns(dt); updSignals(dt); updStreetLamps(dt); runHooks(HOOKS.update,dt);
   updCharges(dt); spreadFire(dt); updBall(dt); updScorch(); updZone();
   const _q1=_now(); buildQueued();      PROF.pQueue=_now()-_q1;
   const _q2=_now(); updOrb(dt);         PROF.pOrb=_now()-_q2;
@@ -9369,7 +9511,7 @@ function updHitMark(dt){
   else if(h.style.opacity!=='0') h.style.opacity='0';
 }
 function updHUD(dt){
-  updAimRings(dt); updHitMark(dt); drawCompass(dt); updTut(dt); updCallouts();
+  updAimRings(dt); updHitMark(dt); drawCompass(dt); updTut(dt); updCallouts(); runHooks(HOOKS.hud,dt);
   mmT+=dt; if(mmT>.15){ mmT=0; drawMinimap(); }
   hudT+=dt; if(hudT<.1) return; hudT=0;
   let p=Math.min(100,killedVox/totalVox*100);
@@ -9630,7 +9772,7 @@ function updKeyHint(){
   el.keyhint.innerHTML='<b>'+W.n+'</b>　'+(WHINT[W.id]||'')+'<br><span>'+(PCS.istyle==='gp'?'左スティック 移動　右スティック 視点　RT 発射　LB/RB 武器　Y 一覧　X 起爆　Start メニュー':(PCS.istyle==='pad'?'WASD 移動　指の動き＝視点　クリック 発射　二本指スクロール 武器　Z/C 武器　Tab 一覧　Esc メニュー':'WASD 移動　↑↓←→ 視点　E/Q 上下　Shift 加速　Z/C 武器　Tab 一覧　V ズーム　T 俯瞰　M 地図　Esc メニュー　/ 操作一覧'))+(PAD.on?'　🎮 パッド有効':'')+'</span>';
 }
 /* ══════════ 設定（端末に保存） ══════════ */
-const PCS={q:'auto',scale:1,fov:75,sens:5,invY:false,ao:true,snd:true,fx:1,hud:true,mlook:'lock',fps:0,amb:1,istyle:'kb'};   // istyle: kb | mouse | pad(トラックパッド) | gp   // amb: 環境音 0/0.5/1   // fps: 0=無制限（ProMotion なら 120）   // mlook: lock | hover | drag
+const PCS={q:'auto',scale:1,fov:75,sens:5,invY:false,ao:true,snd:true,fx:1,hud:true,mlook:'lock',fps:0,amb:1,istyle:'kb' /*@PCS_DEF*/};   // istyle: kb | mouse | pad(トラックパッド) | gp   // amb: 環境音 0/0.5/1   // fps: 0=無制限（ProMotion なら 120）   // mlook: lock | hover | drag
 function loadPCS(){ try{ const o=JSON.parse(localStorage.getItem('tt_pc_v1')||'null'); if(o&&typeof o==='object') Object.assign(PCS,o); }catch(e){} }
 function savePCS(){ try{ localStorage.setItem('tt_pc_v1',JSON.stringify(PCS)); }catch(e){} }
 function applyPCS(){
@@ -9638,6 +9780,7 @@ function applyPCS(){
   PCS.scale=clampN(+PCS.scale||1,.5,2); PCS.fov=clampN(+PCS.fov||75,55,110); PCS.sens=clampN((+PCS.sens||5)|0,1,10);
   if(!['lock','hover','drag'].includes(PCS.mlook)) PCS.mlook='lock';
   if(!['kb','mouse','pad','gp'].includes(PCS.istyle)) PCS.istyle='kb';
+  /*@PCS_APPLY*/
   fpsCap=[0,60,30].includes(+PCS.fps)?+PCS.fps:0;
   if(![0,.5,1].includes(+PCS.amb)) PCS.amb=1; Snd.setAmb(+PCS.amb>0, +PCS.amb);
   resScale=PCS.scale; aoUser=!!PCS.ao; fovUser=PCS.fov; S.sound=!!PCS.snd; QUAL.fxK=PCS.fx<1?.5:1;
@@ -9731,7 +9874,7 @@ function releasePointers(){
   hideCutLine(); el.xh.classList.remove('cut');
 }
 /* ── キーボード ── */
-const GAME_KEYS=new Set(['Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter','F1','F2','Slash','KeyO','KeyM','KeyF','KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','KeyZ','KeyC','KeyX','KeyV','KeyR','KeyT','KeyH','KeyP','KeyI','KeyJ','KeyK','KeyL','ShiftLeft','ShiftRight','Escape']);
+const GAME_KEYS=new Set([/*@GAME_KEYS*/'Space','Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Enter','F1','F2','Slash','KeyO','KeyM','KeyF','KeyW','KeyA','KeyS','KeyD','KeyQ','KeyE','KeyZ','KeyC','KeyX','KeyV','KeyR','KeyT','KeyH','KeyP','KeyI','KeyJ','KeyK','KeyL','ShiftLeft','ShiftRight','Escape']);
 const keyLook={x:0,y:0};
 window.addEventListener('keydown',e=>{
   const code=e.code;
@@ -9773,6 +9916,7 @@ window.addEventListener('keydown',e=>{
     case 'KeyM': openMap(); break;
     case 'F1': case 'Slash': openKeys(); break;
     case 'F2': case 'KeyO': togglePerf(); break;
+    /*@KEYS*/
     default: { const wi=KEYCODE_W[code]; if(wi!==undefined&&WPN[wi]) selW(WPN[wi].id,true); }
   }
 });
@@ -10015,6 +10159,7 @@ function renderMenu(){
   setTog('bInvY','Y軸反転',PCS.invY); setTog('bSnd',PCS.snd?'🔊 音':'🔇 音 OFF',PCS.snd);
   setTog('bAO','SSAO '+(PCS.ao?'ON':'OFF'),PCS.ao); setTog('bFx','演出 '+(PCS.fx<1?'控えめ':'標準'),PCS.fx>=1);
   setTog('bPerf','性能表示',QUAL.showPerf); setTog('bHud','HUD '+(PCS.hud?'表示':'非表示'),PCS.hud);
+  /*@MENU_RENDER*/
   const pm=document.getElementById('pmModes'); pm.innerHTML='';
   MODES.forEach(M=>{ pm.appendChild(mkPB(M.n+'　'+M.d, M.id===MODE, ()=>{ setMode(M.id); genCity(MAPID,citySeed); spawnOverview(); closeMenu(); banner(M.n+'モード',M.lbl); wToast(M.d); },'pmM_'+M.id)); });
   const pp=document.getElementById('pmMaps'); pp.innerHTML='';
@@ -10184,6 +10329,7 @@ function onResultShow(){
       key.innerHTML+='<b style="background:'+SRC_COL[k]+'"></b>'+SRCNAME[k]+' ×'+SRCMUL[k]+' '+Math.round(pc)+'%'; } }
   const v=document.getElementById('rViz'); if(v){ v.style.opacity='0'; setTimeout(()=>{ v.style.opacity='1'; v.animate([{transform:'translateY(12px)',opacity:0},{transform:'none',opacity:1}],{duration:420,easing:'cubic-bezier(.16,.9,.3,1)'}); },480); }
 }
+/*@UI_DEFS*/
 /* 初回だけ短い操作ヒント */
 let hintT=null;
 function showHint(force){
@@ -10212,7 +10358,7 @@ function drawPerf(avg,worst){
     'input '+(locked?'mouse-locked':(mouseUsed?'mouse':'keyboard'))+(PAD.on?' pad':'')+' fire '+fireHeld+' cut '+CUT.on;
 }
 /* 検証用フック（PC） */
-const PCDBG={
+const PCDBG={ /*@PCDBG*/
   start:startGame, showTitle:showTitle, titleOn:()=>titleOn,
   key:(code,down)=>{ window.dispatchEvent(new KeyboardEvent(down?'keydown':'keyup',{code:code,key:code,bubbles:true,cancelable:true})); },
   look:lookPx, keys:()=>keys, cut:()=>CUT, zoomK:()=>zoomK, fov:()=>camera.fov, PCS:PCS, cycleW:cycleW,
@@ -10259,10 +10405,12 @@ function initScene(){
   initPeds();
   initLanterns();
   initSignals();
+  initStreetLamps();
   camera=new THREE.PerspectiveCamera(72,window.innerWidth/window.innerHeight,.6,3600);
 
   // 空：光害で地平線が光る東京の夜空（雲・月・星はシェーダーで描く）
   skyMesh=makeSky(); scene.add(skyMesh);
+  runHooks(HOOKS.init);
 
   // 地面
   const gg=new THREE.PlaneGeometry(9000,9000,1,1);   // 端が見えないよう霧の届く先まで広げる
@@ -10395,7 +10543,7 @@ if(window.TT_DEBUG || /[?#&]debug/.test(location.search+location.hash)) window._
   checkTopple:checkTopple, setLeanDir:setLeanDir, damagePlane:damagePlane, doCut:doCut,
   fireOrb:fireOrb, getOrb:()=>orbShot,
   inp:()=>inp, updCam:updCam,
-  lampObj:()=>lampObj, lampPos:()=>lampPos, killLampsNear:killLampsNear,
+  lampObj:()=>lampObj, lampPos:()=>lampPos, killLampsNear:killLampsNear, SLP:()=>SLP, lampLights:()=>SLPL.ls, streetLampsBlast:streetLampsBlast,
   updScoreUI:updScoreUI, updHUD:updHUD,
   placeCharge:placeCharge, blowCharges:blowCharges, swingBall:swingBall,
   getBall:()=>ball,

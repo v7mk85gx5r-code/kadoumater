@@ -70,3 +70,12 @@ WebGL2・HalfFloat RT・MSAA が使える前提で画質を上げてよい（ネ
       rep("既存の一意な文字列", "置換後")
   ```
   完全一致で置換すること。曖昧な短い文字列を anchor にしない（他の機能モジュールと衝突する）。
+
+## 共通フックとマーカー（work/pc/feat/19_hooks.py が用意。**新しい機能は必ずこれを使う**）
+同じ行を複数の機能が置換すると 2 つ目以降が失敗するため、共有の行は直接触らず、フック配列に push するかマーカーを置換する。
+- フック配列 `HOOKS`（本体スコープ、どこからでも参照可）: `HOOKS.init.push(fn)`（initScene の空の生成直後。プールを 1 度だけ作る）、`HOOKS.build.push(fn)`（genCity の最後、seed 付き乱数の中）、`HOOKS.reset.push(fn)`（resetWorld）、`HOOKS.update.push(fn(dt))`（step の毎フレーム）、`HOOKS.blast.push(fn(x,y,z,R))`（detonate の爆風）、`HOOKS.lights.push(fn(cand,dt))`（updLights の候補。`cand.push({x,y,z,r,c:[r,g,b],i,tau:1,s:0})`）、`HOOKS.hud.push(fn(dt))`（updHUD）。
+  登録は定義置き場で `HOOKS.build.push(myBuild);` のように書く（モジュール評価時に実行される。genCity は起動列の最後で呼ばれるので間に合う）。
+- マーカー（`rep(marker, 自分のコード + '\n' + marker)` のように、**置換後も同じマーカーを残す**）:
+  `/*@MATS*/`（MATS 素材表の末尾。新しい素材 ID は 46〜63 を使う。`M_*` 配列は 64 枠）、`/*@DEFS*/`（本体の関数・定数の定義置き場。resetWorld の直前）、`/*@UI_DEFS*/`（UI ブロックの定義置き場）、`/*@CSS*/`（CSS 末尾。`src.rep('css',...)`）、`<!--@BODY-->`（本文 HTML。`src.rep('body',...)`）、`<!--@MENU_ROWS-->`（設定メニューの行を足す）、`/*@MENU_RENDER*/`（renderMenu の中で行を描く）、`/*@PCS_DEF*/`（設定の既定値。`, foo:1 /*@PCS_DEF*/` のように）、`/*@PCS_APPLY*/`（applyPCS の正規化）、`/*@KEYS*/`（keydown の switch に `case 'KeyX': ...; break;` を足す）、`/*@GAME_KEYS*/`（preventDefault するキー。`'KeyX',/*@GAME_KEYS*/`）、`/*@PCDBG*/`（`__tt.pc` の検証フック。`foo:()=>..., /*@PCDBG*/`）、`<!--@KEYS_LEGEND-->`（操作一覧の末尾に行を足す）。
+- シェーダの cacheKey は文字列長から自動で変わるので触らない（LIT_PRE/LIT_MAIN/LIT_COLOR、WET_PRE/WET_MAIN を置換すれば鍵も変わる）。
+- 既存の機能モジュール 00〜20 が置換した行は、生成物の文面が変わっている。anchor は **生成物（work/TOKYO_TEARDOWN_PC.html）の現在の文面**から取ること。
