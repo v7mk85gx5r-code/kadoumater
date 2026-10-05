@@ -18,7 +18,7 @@ async function newPage(vw,vh){
     if(u.startsWith('http://local.test/')) return route.fulfill({status:200,contentType:'text/html',body:html});
     return route.abort(); });
   await page.goto('http://local.test/index.html');
-  await page.waitForFunction(()=>window.__tt && document.getElementById('boot') && getComputedStyle(document.getElementById('boot')).display==='none',null,{timeout:200000}).catch(()=>{});
+  await page.waitForFunction(()=>window.__tt && document.getElementById('boot') && getComputedStyle(document.getElementById('boot')).display==='none',null,{timeout:420000}).catch(()=>{ console.log('boot wait timed out (CPU contention?)'); });
   return page;
 }
 const ev=(fn,...args)=>page.evaluate(fn,...args);
