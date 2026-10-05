@@ -5,3 +5,4 @@ work/test/shots/
 work/test/*.log
 work/test/pc_shots/*.png
 .claude/worktrees/
+__pycache__/

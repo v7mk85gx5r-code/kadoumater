@@ -1091,6 +1091,25 @@ vec3 ttSurf(vec3 c, vec3 wp, vec3 N, float vert, float px){
     c*=0.88+0.22*n;
     float sm=abs(fract(uv.y/2.8)-0.5);                                   // 型枠の継ぎ目
     c*=1.0-0.10*(1.0-smoothstep(0.0,0.03,sm))*near;
+  } else if(mid==54.0){
+    // 室外機：面の中央にファンの覆い（円形グリル：細い縦格子）、周りはルーバーの横筋
+    vec2 lp=fract(uv/1.4)-0.5;
+    float rr=length(lp);
+    float fan=(1.0-smoothstep(0.30,0.36,rr))*smoothstep(0.07,0.11,rr);
+    float ring=1.0-smoothstep(0.0,0.03,abs(rr-0.34));
+    float lou=0.82+0.18*step(0.5,fract(uv.y/0.14));
+    float grill=0.30+0.12*step(0.5,fract(uv.x/0.09));
+    c*=mix(lou,grill,fan*near);
+    c*=1.0-0.38*ring*near;
+    c*=0.94+0.10*ttVN(uv*2.0);
+  } else if(mid==53.0){
+    // 太陽光パネル：濃紺のガラスに 0.47m のセル格子（銀の目地）と 1.4m ごとの枠
+    vec2 g=abs(fract(uv/0.47)-0.5);
+    float gl=1.0-smoothstep(0.42,0.48,max(g.x,g.y));
+    c=mix(c*0.6+vec3(0.12,0.13,0.14),c,mix(1.0,gl,near));
+    c*=0.90+0.20*ttVN(floor(uv/0.47)*1.7);
+    float fr=abs(fract(uv.x/1.4)-0.5);
+    c*=1.0-0.30*(1.0-smoothstep(0.0,0.04,fr))*near;
   } else if(tile){
     vec2 g=abs(fract(uv/0.7)-0.5);
     float gl=1.0-smoothstep(0.40,0.49,max(g.x,g.y));                     // 目地
@@ -2855,6 +2874,8 @@ const MATS={
   43:{n:'樹木',       r:.20,g:.31,b:.16, hp:14,  sc:1, ld:0.0},
   44:{n:'幹',         r:.24,g:.21,b:.18, hp:14,  sc:1, ld:0.0},
   45:{n:'バスケットボール', r:.86,g:.40,b:.10, hp:60, sc:2, ld:0.3},
+  53:{n:'太陽光パネル', r:.11,g:.15,b:.24, hp:20, sc:1, ld:0.0},
+  54:{n:'室外機',       r:.64,g:.64,b:.61, hp:40, sc:1, ld:0.2},
   46:{n:'テント庇(赤)', r:.72,g:.16,b:.14, hp:18, sc:1, ld:0.0},
   47:{n:'テント庇(黄)', r:.86,g:.66,b:.12, hp:18, sc:1, ld:0.0},
   48:{n:'テント庇(緑)', r:.14,g:.46,b:.22, hp:18, sc:1, ld:0.0},
@@ -3470,10 +3491,10 @@ function mkBuilding(fx,fz,fw,fd,H,style,seed,opt){
   if(R()<.75){
     for(let k=0;k<RI(2,6);k++){
       const y=(nlv>1?lv[RI(1,nlv-1)]:RI(1,Math.max(1,H-3)))+1;
-      if(face===0) set(fX0-1,y,RI(fZ0+1,fZ1-1),20);
-      else if(face===1) set(fX1+1,y,RI(fZ0+1,fZ1-1),20);
-      else if(face===2) set(RI(fX0+1,fX1-1),y,fZ0-1,20);
-      else set(RI(fX0+1,fX1-1),y,fZ1+1,20);
+      if(face===0) set(fX0-1,y,RI(fZ0+1,fZ1-1),54);
+      else if(face===1) set(fX1+1,y,RI(fZ0+1,fZ1-1),54);
+      else if(face===2) set(RI(fX0+1,fX1-1),y,fZ0-1,54);
+      else set(RI(fX0+1,fX1-1),y,fZ1+1,54);
     }
   }
   /* ── 自動販売機（路面） ── */
@@ -3493,31 +3514,23 @@ function mkBuilding(fx,fz,fw,fd,H,style,seed,opt){
     // パラペット
     for(let x=rX0;x<=rX1;x++){ set(x,H+1,rZ0,18); set(x,H+1,rZ1,18); }
     for(let z=rZ0;z<=rZ1;z++){ set(rX0,H+1,z,18); set(rX1,H+1,z,18); }
-    // 塔屋
-    if(rX1-rX0>=3&&rZ1-rZ0>=3&&R()<.8){
-      const tx=RI(rX0+1,rX1-2), tz=RI(rZ0+1,rZ1-2);
-      fill(tx,H+1,tz,tx+1,H+3,tz+1,1);
-    }
-    // 給水タンク（脚付き）
-    if(rX1-rX0>=3&&rZ1-rZ0>=3&&R()<.72){
-      const tx=RI(rX0+1,rX1-2), tz=RI(rZ0+1,rZ1-2);
-      set(tx,H+1,tz,5); set(tx+1,H+1,tz,5); set(tx,H+1,tz+1,5); set(tx+1,H+1,tz+1,5);
-      fill(tx,H+2,tz,tx+1,H+3,tz+1,20);
-    }
-    // 室外機
-    for(let k=0;k<RI(1,5);k++) set(RI(rX0,rX1),H+1,RI(rZ0,rZ1),20);
-    // アンテナ
-    if(R()<.5){
-      const ax=RI(rX0,rX1), az=RI(rZ0,rZ1);
-      for(let y=H+1;y<H+1+RI(3,7);y++) set(ax,y,az,5);
-    }
+    /* ── 屋上の造り込み（work/pc/feat/25_rooftops.py）：占有表 ro で互いに重ならないように置く ── */
+    const ro=new Uint8Array(W*D);
+    const iX0=rX0+1, iX1=rX1-1, iZ0=rZ0+1, iZ1=rZ1-1, iw=iX1-iX0+1, idp=iZ1-iZ0+1;   // パラペットの内側
+    const rIn=(x,z)=>x>=iX0&&x<=iX1&&z>=iZ0&&z<=iZ1;
+    const rFree=(x0,z0,x1,z1)=>{ if(!rIn(x0,z0)||!rIn(x1,z1)) return false;
+      for(let z=z0;z<=z1;z++) for(let x=x0;x<=x1;x++) if(ro[x+W*z]) return false; return true; };
+    const rMark=(x0,z0,x1,z1)=>{ for(let z=Math.max(0,z0);z<=Math.min(D-1,z1);z++) for(let x=Math.max(0,x0);x<=Math.min(W-1,x1);x++) ro[x+W*z]=1; };
+    const rPlace=(w,d,tries)=>{ if(iX1-w+1<iX0||iZ1-d+1<iZ0) return null;
+      for(let t=0;t<tries;t++){ const x=RI(iX0,iX1-w+1), z=RI(iZ0,iZ1-d+1); if(rFree(x,z,x+w-1,z+d-1)){ rMark(x,z,x+w-1,z+d-1); return [x,z]; } } return null; };
+    let signEdgeZ=-1;                              // 横長の広告塔が占めている辺（フェンスを立てない）
     /* ⑥ 屋上広告塔：実際の歌舞伎町は屋上に鉄骨の櫓を組んで
-       巨大な看板を立てる。上空から見た時の情報量を決める要素 */
+       巨大な看板を立てる。上空から見た時の情報量を決める要素。先に置いて占有させる */
     if((style==='zakkyo'||style==='shop'||style==='office') && R()<dense*0.92){
       const nm=(R()<.5)?mainNeon:NEON[(R()*NEON.length)|0];
       const kind=R();
       if(kind<0.45){
-        // 縦長の塔：櫓を組んで、その上に細長い看板
+        // 縦長の塔：櫓を組んで、その上に細長い看板。看板の直下の両端に投光器（27）
         const tx=RI(rX0,Math.max(rX0,rX1-1)), tz=RI(rZ0,Math.max(rZ0,rZ1-1));
         const th=RI(6,12);
         for(let y=H+1;y<H+th;y++){          // 鉄骨の櫓
@@ -3525,15 +3538,18 @@ function mkBuilding(fx,fz,fw,fd,H,style,seed,opt){
           if(y%3===0){ set(tx,y,tz+1,5); set(tx+1,y,tz+1,5); }
         }
         fill(tx-1,H+th,tz,tx+2,H+th+RI(3,6),tz,nm);
+        set(tx-1,H+th-1,tz,27); set(tx+2,H+th-1,tz,27);
+        rMark(tx-1,tz,tx+2,tz+1);
       } else if(kind<0.78){
-        // 横長の看板：屋上の一辺いっぱいに立てる
-        const th=RI(4,8), side=(R()<.5);
+        // 横長の看板：屋上の一辺いっぱいに立てる。前面 1 マス内側に照明バー（27、2 マス間隔）
+        const th=RI(4,8), side=(R()<.5), ez=side?rZ0:rZ1, lz=side?rZ0+1:rZ1-1;
         for(let x=rX0;x<=rX1;x+=2)          // 支柱
-          for(let y=H+1;y<H+3;y++) set(x,y,side?rZ0:rZ1,5);
-        if(side) fill(rX0,H+3,rZ0,rX1,H+3+th,rZ0,nm);
-        else     fill(rX0,H+3,rZ1,rX1,H+3+th,rZ1,nm);
+          for(let y=H+1;y<H+3;y++) set(x,y,ez,5);
+        fill(rX0,H+3,ez,rX1,H+3+th,ez,nm);
+        for(let x=iX0;x<=iX1;x+=2) set(x,H+1,lz,27);
+        rMark(rX0,ez,rX1,ez); rMark(rX0,lz,rX1,lz); signEdgeZ=ez;
       } else {
-        // 箱型の広告塔：屋上に立方体を載せ、4面すべてが看板
+        // 箱型の広告塔：屋上に立方体を載せ、4面すべてが看板。長辺の外側 1 マスに照明バー
         const bx=RI(rX0,Math.max(rX0,rX1-3)), bz=RI(rZ0,Math.max(rZ0,rZ1-3));
         const bw=Math.min(4,rX1-bx), bd=Math.min(4,rZ1-bz), bh=RI(4,9);
         if(bw>0&&bd>0){
@@ -3542,10 +3558,100 @@ function mkBuilding(fx,fz,fw,fd,H,style,seed,opt){
               const edge=(x===bx||x===bx+bw||z===bz||z===bz+bd);
               if(edge) set(x,y,z, (y===H+1||y===H+bh)?5:nm);
             }
+          rMark(bx,bz,bx+bw,bz+bd);
+          const lzs=(bw>=bd)?[bz-1,bz+bd+1]:null, lxs=(bw>=bd)?null:[bx-1,bx+bw+1];
+          if(lzs){ for(const z of lzs) for(let x=bx;x<=bx+bw;x+=2) if(rFree(x,z,x,z)){ set(x,H+1,z,27); rMark(x,z,x,z); } }
+          else   { for(const x of lxs) for(let z=bz;z<=bz+bd;z+=2) if(rFree(x,z,x,z)){ set(x,H+1,z,27); rMark(x,z,x,z); } }
         }
       }
-      // 広告塔の脇に赤い航空障害灯
-      if(R()<.35) set(RI(rX0,rX1),H+2,RI(rZ0,rZ1),19);
+      // 広告塔の脇に赤い航空障害灯（支柱つき）
+      if(R()<.35){ const p=rPlace(1,1,4); if(p){ set(p[0],H+1,p[1],5); set(p[0],H+2,p[1],19); } }
+    }
+    // 塔屋（2×2、扉つき）とダクト（塔屋から屋上の端へ、曲がりを 1 回）
+    if(iw>=3&&idp>=3&&R()<.8){
+      const p=rPlace(2,2,6);
+      if(p){
+        const tx=p[0], tz=p[1];
+        fill(tx,H+1,tz,tx+1,H+3,tz+1,1);
+        set(tx+RI(0,1),H+1,(R()<.5)?tz:tz+1,15);
+        if(R()<.55){
+          const dx=(tx-iX0<iX1-tx)?-1:1, dz=(tz-iZ0<iZ1-tz)?-1:1;
+          let x=(dx<0)?tx-1:tx+2, z=tz+RI(0,1);
+          const bend=RI(1,3); let k=0;
+          while(rIn(x,z)&&rFree(x,z,x,z)&&k<bend){ set(x,H+1,z,20); rMark(x,z,x,z); x+=dx; k++; }
+          x-=dx; z+=dz;
+          while(rIn(x,z)&&rFree(x,z,x,z)){ set(x,H+1,z,20); rMark(x,z,x,z); z+=dz; }
+        }
+      }
+    }
+    // 架台つき給水塔：鉄骨の脚 4 本×2 段の上に 3×3×2 の給水塔（32：壊すと放水）。入らなければ 2×2 の小型
+    { const pw=(style==='office')?.35:((style==='shop')?.45:.55);
+      if(R()<pw){
+        const p=rPlace(3,3,6);
+        if(p){
+          const tx=p[0], tz=p[1];
+          for(const [ox,oz] of [[0,0],[2,0],[0,2],[2,2]]) fill(tx+ox,H+1,tz+oz,tx+ox,H+2,tz+oz,5);
+          fill(tx,H+3,tz,tx+2,H+4,tz+2,32);
+        } else {
+          const q=rPlace(2,2,4);
+          if(q){ const tx=q[0], tz=q[1];
+            set(tx,H+1,tz,5); set(tx+1,H+1,tz,5); set(tx,H+1,tz+1,5); set(tx+1,H+1,tz+1,5);
+            fill(tx,H+2,tz,tx+1,H+3,tz+1,32); }
+        }
+      }
+    }
+    // 室外機の列：一辺に沿って 2 マス間隔で 4〜12 台。余裕があればパラペット側に配管（20）。大きな屋上は 2 辺
+    { let rows=0, placed=0;
+      const sides=[0,1,2,3]; for(let i=3;i>0;i--){ const j=RI(0,i); const t=sides[i]; sides[i]=sides[j]; sides[j]=t; }
+      const want=(iw>=9&&idp>=9&&R()<.6)?2:1;
+      for(let si=0;si<4&&rows<want;si++){
+        const s=sides[si], ax=(s<2);                           // ax: 列は z 方向に伸びる（x 固定）
+        const len=ax?idp:iw, span=ax?iw:idp;
+        if(len<4) continue;
+        const pipe=(span>=6);
+        const e=(s===0||s===2)?(ax?iX0:iZ0):(ax?iX1:iZ1);      // パラペットの内側の列
+        const uLine=pipe?((s===0||s===2)?e+1:e-1):e;           // 室外機の列（配管の内側）
+        const a0=ax?iZ0:iX0, a1=ax?iZ1:iX1;
+        const start=a0+RI(0,1), maxN=Math.min(12,4+RI(0,8));
+        const cells=[];
+        for(let a=start;a<=a1&&cells.length<maxN;a+=2){
+          const x=ax?uLine:a, z=ax?a:uLine;
+          if(rFree(x,z,x,z)) cells.push([x,z]);
+        }
+        if(cells.length<3) continue;
+        for(const c of cells){ set(c[0],H+1,c[1],54); rMark(c[0],c[1],c[0],c[1]); }
+        if(pipe){
+          const f=cells[0], l=cells[cells.length-1];
+          const pa0=ax?f[1]:f[0], pa1=ax?l[1]:l[0];
+          for(let a=pa0;a<=pa1;a++){ const x=ax?e:a, z=ax?a:e; if(rFree(x,z,x,z)){ set(x,H+1,z,20); rMark(x,z,x,z); } }
+        }
+        rows++; placed+=cells.length;
+      }
+      if(!placed){ for(let k=0,n=RI(1,3);k<n;k++){ const p=rPlace(1,1,3); if(p) set(p[0],H+1,p[1],54); } }
+    }
+    // 太陽光パネル：オフィス・マンションの 35%。幅 4〜8×奥行 2 の板を 1 マス空けて 2〜4 列、後ろの列を 1 段高く
+    if((style==='office'||style==='apart')&&iw>=5&&idp>=3&&R()<.35){
+      const w=Math.min(iw-1,RI(4,8)), n=RI(2,4);
+      const x0=RI(iX0,iX1-w+1); let z=RI(iZ0,Math.max(iZ0,iZ1-3*n+1));
+      for(let k=0;k<n&&z+1<=iZ1;k++,z+=3){
+        if(!rFree(x0,z,x0+w-1,z+1)) continue;
+        fill(x0,H+1,z,x0+w-1,H+1,z+1,53);
+        fill(x0,H+2,z+1,x0+w-1,H+2,z+1,53);
+        rMark(x0,z,x0+w-1,z+1);
+      }
+    }
+    // 衛星アンテナ（支柱 5 ＋ 皿 22）と、従来の細いアンテナ
+    if(R()<.45){ const p=rPlace(1,1,4); if(p){ set(p[0],H+1,p[1],5); set(p[0],H+2,p[1],22); } }
+    if(R()<.5){
+      const p=rPlace(1,1,3);
+      if(p){ const h=RI(3,6); for(let y=H+1;y<=H+h;y++) set(p[0],y,p[1],5); }
+    }
+    // フェンス：マンション・オフィスはパラペットの上に支柱（2 マス間隔）＋笠木で金網風。横長の広告塔の辺は除く
+    if(((style==='apart'&&R()<.6)||(style==='office'&&R()<.45))&&iw>=3&&idp>=3){
+      const fs=(x,y,z)=>{ if(!vox[at(x,y,z)]) set(x,y,z,18); };   // 櫓・看板の支柱は上書きしない
+      const FZ=(z)=>{ if(z===signEdgeZ) return; for(let x=rX0;x<=rX1;x++){ fs(x,H+3,z); if((x-rX0)%2===0) fs(x,H+2,z); } };
+      const FX=(x)=>{ for(let z=rZ0;z<=rZ1;z++){ if(z===signEdgeZ) continue; fs(x,H+3,z); if((z-rZ0)%2===0) fs(x,H+2,z); } };
+      FZ(rZ0); FZ(rZ1); FX(rX0); FX(rX1);
     }
   }
 
@@ -7980,8 +8086,8 @@ const Snd=(()=>{
     concrete(x,y,z){ if(!gate('conc',80)) return; const pos=P(x,y,z);
       N(.10,.14,'lowpass',900,180,1,pos); },
     mat(m,x,y,z){
-      if(m===2||m===3||m===4||m===37||m===27||m===28||m===41) this.glass(x,y,z);
-      else if(m===5||m===25||m===20||m===14||m===15||m===18||m===10||m===30||m===32) this.metal(x,y,z);
+      if(m===2||m===3||m===4||m===37||m===27||m===28||m===41||m===53) this.glass(x,y,z);
+      else if(m===5||m===25||m===20||m===14||m===15||m===18||m===10||m===30||m===32||m===54) this.metal(x,y,z);
       else if(m===43||m===44) this.wood(x,y,z);
       else if(m===7||m===8||m===11||m===16||m===17||m===19||m===38||m===39||m===50||m===51||m===52) this.glass(x,y,z);
       else if(m>=46&&m<=49) this.wood(x,y,z);
@@ -11026,7 +11132,7 @@ function drawPerf(avg,worst){
 }
 /* 検証用フック（PC） */
 const PCDBG={ STF:()=>STF, stfBlast:stfBlast, stfHit:stfHit, stfNuke:stfNuke, lights:()=>({nlit:NLIT, nl:LITU.uNL.value, max:LIT_LV[Math.max(0,Math.min(LIT_LV.length-1,QUAL.level|0))], cand:_litCand.length, cars:HL.n, avl:AVL.length, avlOn:AVLL.n,
-    spots:LITU.uLD.value.filter((d,i)=>i<LITU.uNL.value&&d.w>-1).length}), HL:()=>HL, AVL:()=>AVL, AVLL:()=>AVLL, far:()=>({n:FAR.n, pts:FAR.np, tris:FAR.n*10, top:Math.round(FAR.top), blink:FAR.blink, visible:!!(FAR.mesh&&FAR.mesh.visible)}), sfCount:()=>{ const c={}; for(const b of blds){ const v=b.vox; for(let i=0;i<v.length;i++){ const m=v[i]; if(m>=46&&m<=52) c[m]=(c[m]||0)+1; } } return c; }, /*@PCDBG*/
+    spots:LITU.uLD.value.filter((d,i)=>i<LITU.uNL.value&&d.w>-1).length}), HL:()=>HL, AVL:()=>AVL, AVLL:()=>AVLL, far:()=>({n:FAR.n, pts:FAR.np, tris:FAR.n*10, top:Math.round(FAR.top), blink:FAR.blink, visible:!!(FAR.mesh&&FAR.mesh.visible)}), rfCount:()=>{ const c={solar:0,ac:0,water:0,lamp:0,fence:0,blds:0}; for(const b of blds){ if(!b.style||b.style==='pole'||b.style==='car'||b.style==='gate'||b.style==='rail') continue; c.blds++; const v=b.vox, W=b.W, H=b.H; for(let i=0;i<v.length;i++){ const m=v[i]; if(!m) continue; if(m===53) c.solar++; else if(m===54) c.ac++; else if(m===32) c.water++; else if(m===27||m===18){ const y=((i/W)|0)%H; if(y>=8){ if(m===27) c.lamp++; else c.fence++; } } } } return c; }, sfCount:()=>{ const c={}; for(const b of blds){ const v=b.vox; for(let i=0;i<v.length;i++){ const m=v[i]; if(m>=46&&m<=52) c[m]=(c[m]||0)+1; } } return c; }, /*@PCDBG*/
   start:startGame, showTitle:showTitle, titleOn:()=>titleOn,
   key:(code,down)=>{ window.dispatchEvent(new KeyboardEvent(down?'keydown':'keyup',{code:code,key:code,bubbles:true,cancelable:true})); },
   look:lookPx, keys:()=>keys, cut:()=>CUT, zoomK:()=>zoomK, fov:()=>camera.fov, PCS:PCS, cycleW:cycleW,
