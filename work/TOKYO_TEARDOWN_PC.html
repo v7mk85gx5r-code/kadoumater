@@ -10211,7 +10211,7 @@ const AIMR={mesh:null, n:0, t:0, mat:null};
 const AIM_RADIUS={missile:30, carpet:30, incend:24, grav:100, orbit:26, demo:34, meteor:118, nuke:190, orb:0, ball:0, rail:0, gun:0, cutter:0};
 function aimRingsInit(){
   if(AIMR.mesh||typeof scene==='undefined'||!scene) return;
-  const g=new THREE.RingGeometry(.86,1.0,48); g.rotateX(-Math.PI/2);
+  const g=new THREE.RingGeometry(.955,1.0,72); g.rotateX(-Math.PI/2);
   AIMR.mat=new THREE.MeshBasicMaterial({color:0xffb53d,transparent:true,opacity:.55,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide,fog:false});
   AIMR.mesh=new THREE.InstancedMesh(g,AIMR.mat,9); AIMR.mesh.frustumCulled=false; AIMR.mesh.renderOrder=3; AIMR.mesh.count=0; scene.add(AIMR.mesh);
 }
@@ -10235,12 +10235,12 @@ function updAimRings(dt){
       if(W.id==='carpet'){
         const o=camera.position; let fx0=o.x-h.x, fz0=o.z-h.z; const fl=Math.hypot(fx0,fz0)||1; fx0/=-fl; fz0/=-fl;   // 照準の向き（水平）
         const gap=26; for(let i=0;i<9;i++) put(h.x+fx0*gap*(i-4), h.z+fz0*gap*(i-4), 9);
-        AIMR.mat.color.setHex(0xffb53d); AIMR.mat.opacity=.5;
+        AIMR.mat.color.setHex(0xffb53d); AIMR.mat.opacity=.4;
       } else {
         const r=AIM_RADIUS[W.id];
         put(h.x,h.z,r, h.ground?.6:undefined);
         if(W.id==='nuke'||W.id==='meteor'){ put(h.x,h.z,r*.45,h.ground?.6:undefined); }            // 内側＝確実に消える範囲
-        AIMR.mat.color.setHex(W.id==='nuke'?0xff3d7f:(W.id==='incend'?0xff7a30:0xffb53d)); AIMR.mat.opacity=.42;
+        AIMR.mat.color.setHex(W.id==='nuke'?0xff3d7f:(W.id==='incend'?0xff7a30:0xffb53d)); AIMR.mat.opacity=.34;
       }
     }
   }
