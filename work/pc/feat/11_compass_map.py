@@ -53,13 +53,14 @@ function drawCompass(dt){
     if(major){ cpg.fillStyle='rgba(232,239,246,'+fade.toFixed(2)+')'; cpg.font='bold 22px sans-serif'; cpg.fillText(names[d],x,18); }
     else if(mid){ cpg.fillStyle='rgba(141,162,180,'+fade.toFixed(2)+')'; cpg.font='bold 14px sans-serif'; cpg.fillText(String(d),x,20); }
   }
-  // ランドマーク
+  // ランドマーク（名前は照準に近い 2 件まで。重ならないよう行をずらす）
+  let cpLabels=0;
   for(let i=0;i<LMS.length;i++){ const L=LMS[i]; if(L.fell) continue; let lx=0,lz=0,n=0; for(const k of L.ids){ const b=blds[k]; if(!b) continue; lx+=b.ox+b.W*VOX/2; lz+=b.oz+b.D*VOX/2; n++; } if(!n) continue; lx/=n; lz/=n;
     const dx=lx-camera.position.x, dz=lz-camera.position.z; const dist=Math.hypot(dx,dz);
     let rel=Math.atan2(dx,-dz)-hd; rel=Math.atan2(Math.sin(rel),Math.cos(rel)); if(Math.abs(rel)>span/2) continue;
     const x=cx+rel*pxPerRad;
     cpg.fillStyle='rgba(255,209,102,.95)'; cpg.beginPath(); cpg.moveTo(x,H-4); cpg.lineTo(x-7,H-16); cpg.lineTo(x+7,H-16); cpg.closePath(); cpg.fill();
-    if(Math.abs(rel)<.35){ cpg.font='bold 15px "Hiragino Sans","Noto Sans JP",sans-serif'; cpg.fillStyle='rgba(255,209,102,.95)'; cpg.strokeStyle='rgba(0,0,0,.8)'; cpg.lineWidth=4; const t=L.name+' '+Math.round(dist)+'m'; cpg.strokeText(t,x,H-34); cpg.fillText(t,x,H-34); }
+    if(Math.abs(rel)<.16 && cpLabels<2){ cpg.font='bold 15px "Hiragino Sans","Noto Sans JP",sans-serif'; cpg.fillStyle='rgba(255,209,102,.95)'; cpg.strokeStyle='rgba(0,0,0,.8)'; cpg.lineWidth=4; const t=L.name+' '+Math.round(dist)+'m'; const yy=H-34-cpLabels*18; cpg.strokeText(t,x,yy); cpg.fillText(t,x,yy); cpLabels++; }
   }
   // 中央の指標
   cpg.fillStyle='var(--cyan)'; cpg.fillStyle='rgba(79,227,240,.95)'; cpg.beginPath(); cpg.moveTo(cx,H-2); cpg.lineTo(cx-6,H-12); cpg.lineTo(cx+6,H-12); cpg.closePath(); cpg.fill();
